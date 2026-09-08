@@ -1,0 +1,15 @@
+[package]
+name = "case_studies"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+rand = "0.10.2"
+rustc-hash = "2"
+uuid = { version = "1.24.0", features = ["v4"] }
+
+# squeeze the last ~10-20% out of release builds:
+# whole-program LTO + single codegen unit = maximum cross-function inlining
+[profile.release]
+lto = "fat"
+codegen-units = 1

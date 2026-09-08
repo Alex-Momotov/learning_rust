@@ -1,0 +1,245 @@
+- when you import a type, you automatically import everything the author impl-ed on it.
+- when you import a trait, either:
+    - the trait author's other type gains new behaviours. The trait's author: "here's my type and here's a catallogue of behaviours you can opt into".
+    - another crate's type gains new behaviours, because either:
+        - another type's author implemented it for their own type. The type's author: "here's my thing, and I've made it fit into the ecosystem by implementing those traits. You just need to import them.". (most common)
+        - trait's author implemented it for this type. The trait's author: "Here are new behaviours that will make everyone else's thing nicer".
+
+# _____________________________________________________________________________________________
+impl    Impl can only be defined in the same crate that defines the type. And magically gets picked up without having to be in scope - just has to be added as a crate.
+        So when you import a type (struct/enum) you also automatically import all impl behaviours defined for that type from that crate, without having to import them (not even possible).
+
+trait
+
+        CASE 1 ----------------------------------------------------------------------------------------
+        You import a trait - the author didn't implement it for any existing types, none of the existing types implemented it - nothing happens. 
+        It's up to you to implement it.
+        "I import this trait as behaviour the author didn't define, and nobody else did. Up to me to implement it."
+        
+        A
+        trait Sound
+
+        CASE 2 ----------------------------------------------------------------------------------------
+        Crate defining the type and a list of traits on it. It's up to the user to opt into the behaviours.
+        "here's my type and here's a catallogue of behaviours you can opt in."
+
+        A
+        struct Cat
+        trait Sound
+        trait Movement
+        trait Sleeping
+        
+        B
+        use Cat       -> raw Cat 
+        use Sound     -> Cat gains new behaviours
+        use Movement  -> Cat gains new behaviours
+        use Sleeping  -> Cat gains new behaviours
+        
+        CASE 3 ----------------------------------------------------------------------------------------
+        type owner extending itself with someone else's trait
+
+        You import a trait and one of your existing types gains new behaviours (because in its crate it also imported and implemented that trait)
+
+        same crate that defined the struct implemented another crate's trait on it. I.e. "I'm defining a struct
+        and implementing some common behaviour defined by someone else. Its up to my user to use that behaviour by
+        importing that defined trait behaviour from that other crate."
+
+        A
+        trait Sound
+        
+        B
+        struct Cat
+        impl Sound for Cat
+        
+        C
+        use Cat     -> raw Cat 
+        use Sound   -> Cat gains new behaviour
+        
+        CASE 4 ----------------------------------------------------------------------------------------
+        trait owner reaching out to extend someone else's type
+        
+        a different crate which didn't define a struct implemented its trait for another crate's struct. I.e.
+        "I'm adding behaviour so something I don't own in case its useful for someone"
+
+        A
+        struct Cat
+        
+        B
+        trait Sound
+        impl Sound for Cat
+        
+        C
+        use Cat     -> raw Cat 
+        use Sound   -> Cat gains new behaviour
+
+# _____________________________________________________________________________________________
+From perspective of trait importer:
+- crate 1: trait A                            Importing standalone trait. I import this trait as behaviour the author didn't define, and nobody else did. Up to me to implement it.
+- crate 1: type, traits A, B, C               Importing a type and a catalogue of optional behaviours for it. I import this trait as added optional behaviour the author added for it's own type.
+- crate 1: trait   crate 2: type, impl trait  I import this trait as behaviour the author didn't define, but the author of another type that I'm using did, so I gait behaviours coming from their implementation.
+- crate 1:                                    The autor: "Here are new behaviours that will make everyone else's thing nicer". I import this trait as behaviour the author added for someone else's type
+
+
+
+# _____________________________________________________________________________________________
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CASE 1 — one crate owns both halves
+(trivially legal — no coherence question arises)
+
+    ┌────────────────────┐
+    │ A                  │
+    │ trait Sound        │
+    │ struct Cat         │
+    │ impl Sound for Cat │
+    └────────────────────┘
+
+    ✅ A owns the trait AND the type, so it may impl freely
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CASE 2 — foreign trait, local type
+(orphan rule satisfied on the TYPE side)
+
+    ┌────────────────────┐                 ┌─────────────┐
+    │ A                  │ ──depends on──▶ │ B           │
+    │ struct Cat         │                 │ trait Sound │
+    │ impl Sound for Cat │                 └─────────────┘
+    └────────────────────┘
+
+    ✅ A impls a foreign trait (B::Sound) for its own local type (A::Cat)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CASE 3 — trait not imported at all (method invisible, not ambiguous)
+(same "in scope" rule as Case 9 — but with ZERO traits in scope
+ instead of two, the failure is "not found", not "ambiguous")
+
+    ┌──────────────┐
+    │ A            │
+    │ trait Sound  │
+    └──────────────┘
+           ▲
+           │ impl references A::Sound
+           │
+    ┌────────────────────────┐
+    │ B                      │
+    │ struct Cat             │
+    │ impl A::Sound for Cat  │
+    └────────────────────────┘
+           ▲
+           │ imports Cat only — NOT Sound
+           │
+    ┌────────────────────────────┐
+    │ C                          │
+    │ use B::Cat;                │
+    │ let c = Cat;               │
+    │ c.make_sound();  ← E0599   │
+    └────────────────────────────┘
+
+    Method-call syntax only searches traits IN SCOPE, not "any trait
+    implemented somewhere." C imported the struct but never `use A::Sound;`,
+    so `make_sound` doesn't exist on `Cat` as far as C is concerned.
+    ✅ Fix: `use A::Sound;` in C — importing the type alone is never enough.
+
+    (Inherent methods — `impl Cat { fn make_sound() {..} }`, no trait —
+    are exempt: those are visible the moment `Cat` is in scope.)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CASE 4 — local trait, foreign type
+(orphan rule satisfied on the TRAIT side)
+
+    ┌────────────────────┐                 ┌────────────┐
+    │ A                  │ ──depends on──▶ │ B          │
+    │ trait Sound        │                 │ struct Cat │
+    │ impl Sound for Cat │                 └────────────┘
+    └────────────────────┘
+
+    ✅ A impls its own local trait (A::Sound) for a foreign type (B::Cat)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CASE 5 — double-foreign
+(orphan rule VIOLATION — E0117)
+
+    ┌─────────────┐                 ┌────────────────────┐                 ┌────────────┐
+    │ B           │ ◀──depends on── │ A                  │ ──depends on──▶ │ C          │
+    │ trait Sound │                 │ impl Sound for Cat │                 │ struct Cat │
+    └─────────────┘                 └────────────────────┘                 └────────────┘
+
+    ❌ A owns neither Sound nor Cat — rejected at A's OWN compile step,
+       whether or not anything downstream ever depends on A
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CASE 6 — newtype escape hatch for Case 5
+(the wrapper makes the type local again)
+
+    ┌─────────────┐                 ┌────────────────────────┐                 ┌────────────┐
+    │ B           │ ◀──depends on── │ A                      │ ──depends on──▶ │ C          │
+    │ trait Sound │                 │ struct Wrapper(Cat)    │                 │ struct Cat │
+    └─────────────┘                 │ impl Sound for Wrapper │                 └────────────┘
+                                    └────────────────────────┘
+
+    ✅ Wrapper is local to A → this is just Case 2's shape again
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CASE 7 — BOTH owners implementing it is impossible
+(it would require a dependency cycle)
+
+    ┌─────────────────────────────┐                   ┌─────────────────────────────┐
+    │ D                           │  ──would need──▶  │ E                           │
+    │ struct Cat                  │  ◀──would need──  │ trait Sound                 │
+    │ (wants: impl Sound for Cat) │                   │ (wants: impl Sound for Cat) │
+    └─────────────────────────────┘                   └─────────────────────────────┘
+
+    Either ONE of these impls alone is perfectly legal (Case 2 / Case 4).
+    But for BOTH to exist, D must depend on E *and* E depend on D.
+    ❌ Cargo's dependency graph is a DAG — rejected as a *graph* at resolve
+       time, before coherence checking is ever reached.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CASE 8 — duplicate impl of the same (Trait, Type) pair
+(uniqueness VIOLATION — E0119; the orphan rule is irrelevant here)
+
+    ┌─────────────────────────┐
+    │ A                       │
+    │ trait Sound             │
+    │ struct Cat              │
+    │ impl Sound for Cat   #1 │
+    │ impl Sound for Cat   #2 │
+    └─────────────────────────┘
+
+    ❌ A is fully entitled to write this impl — it owns both halves —
+       but at most ONE impl per (Trait, Type) pair may exist, program-wide
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CASE 9 — the one REAL ambiguity: two DIFFERENT traits, same method name
+(both impls legal individually — resolved at the CALL SITE, not at build time)
+
+                       ┌────────────┐
+                       │ Z          │
+                       │ struct Cat │
+                       └────────────┘
+                          ▲       ▲
+               ┌──────────┘       └──────────┐
+               │                             │
+    ┌────────────────────┐        ┌────────────────────┐
+    │ X                  │        │ Y                  │
+    │ trait Foo { go() } │        │ trait Bar { go() } │
+    │ impl Foo for Cat   │        │ impl Bar for Cat   │
+    └────────────────────┘        └────────────────────┘
+               ▲                             ▲
+               └──────────────┬──────────────┘
+                              │
+                   ┌────────────────────┐
+                   │ A                  │
+                   │ use X::Foo;        │
+                   │ use Y::Bar;        │
+                   │ cat.go();  ← E0034 │
+                   └────────────────────┘
+
+    X's impl fills the (Foo, Cat) slot; Y's fills (Bar, Cat) — different keys,
+    so both are legal and neither conflicts at build time.
+    (A also lists Z as a dependency, to be able to name Cat at all — a crate
+     never gets its dependencies' dependencies for free.)
+    ❌ Only A's *call* is ambiguous, and only because both traits are in scope.
+       Disambiguate: Foo::go(&cat)  or  Bar::go(&cat)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+

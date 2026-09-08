@@ -1,0 +1,306 @@
+# THESIS - Why learn and use Rust for all your software in 2026
+- Performance (on par with C), tiny memory & CPU footprint, ultra fast startup time (perfect for lambda or CLI)
+- Tiny binaries (a few MB), meaning also tiny Docker image too, fast download 
+- Safety - eliminating a whole category of bugs and incidents. Important where safety is critical, in production, or when distributing to users, fewer incidents. 
+  Advantage in the age of AI - Think of it as free guardrails for AI Agents.
+- Compile straight to binaries & cross-compile to different OSs from one machine
+- No runtime overhead, no GC - Runtime is the machinery needed to run the program - can be a separately installed program, such as JVM or Python interpreter, 
+  or baked into the binary such as Nuitka or Go binary. Rust or C don't have a runtime at all, just a little glue code at a startup of the binary.
+  Not having runtime inside the binary is what allows the binary to be tiny. Also no GC pauses and high performance. 
+- Fearless concurrency - the borrow checker proves the absense of data races, so you can parallelise agressively in places where you wouldn't data in C++ or other languages.
+
+  
+- Why learn to write by hand? 
+  - To know what's possible and be a better collaborator with AI Agents
+  - It makes you a better software developer in general because it makes you think about memory ownership, heap, and stack, and how to write safer code.
+- Usages: microservices (replaces Java because more safe and uses 5-10x less memory, no GC pauses, cold-start time, lower cloud bill). Arguments: faster to 
+          develop in (because less incidents + bugs) and cheaper to run; db / query engines, stream processing; batch jobs, lambda functions; 
+          Python native extensions; Cli tools
+
+- Why I love rust
+    - Data (struct) is separate from methods that can act on it (impl blocks) - and this is forced.
+      This is my Facade-catalogue pattern enforced.
+    - Functions don't have default or named parameters - all parameters are required.
+      This is my preference enforced strictly by the language. 
+      No need to hunt down where a parameter came from - default? named? every function call is exhaustively self explanatory
+    - No inheritance - you use composition instead
+
+- ⚠️ Tips to make working with Rust easier:
+    - /examples -> for learning and prototyping. Much easier, since you can run individual files, and no need to create a project to quickly test something.
+    - Turn on type hints -> because apis return a mixture of owned/&/&mut and it's hard to remember them all. Especially in iterator pipelines.
+    - Custom snippets -> for hard to type repeated syntax such as println!("{:?}", x)
+    - Use your IDE actions -> match - cmd+. "add missing arms" - write out match arms
+                           -> impl trait - cmd+. "implement missing members" - write out trait methods
+
+- ⚠️ Tips for learning Russt:
+    - Syllabus based learning - 0_language_syllabus.txt. Because The Book, and most materials are patchy. Learn in the order that makes most sense to you.
+    - Use AI chat as your tutor. You can ask it anything that's otherwise obscure in the learning material
+
+# _____________________________________________________________________________________________
+# GETTING STARTED
+
+# Hello world
+script.rs
+rustc script.rs
+./script
+
+# Project
+- cargo new hello_cargo     # creates a new project with src/main.rs, Cargo.toml, and .gitignore
+- use cargo commands to build and run the project
+
+# IDE setup - VSCode
+- install rust-analyzer
+- mod another_file; <- In main.rs in order for rust-analyzer to work across files (it only looks at the crate tree)
+- "rust-analyzer.inlayHints.typeHints.enable": false,       # while learning?
+- "rust-analyzer.inlayHints.parameterHints.enable": false,
+- Github Copilot: Toggle Inline suggestions                 # while learning
+- Cmd + U -> Trigger Suggest (if doesn't pop up automatically)
+
+# _____________________________________________________________________________________________
+# WORKING WITH PROJECT
+
+# Create
+rustc hello_world.rs	# compile hello_world.rs into native binary. ./hello_world to run it.
+cargo new hello_cargo	# create a new project with src/main.rs, Cargo.toml, and .gitignore
+
+# Quality
+cargo check         # Quickly check if your code compiles without actually compiling. Much quicker than cargo build
+cargo clippy        # Linter: catches non-idiomatic code + real bugs, with explanations
+            --fix   # Auto-apply the mechanical fixes
+cargo fmt           # Auto-format (one canonical style, no debates)
+cargo test      	# run all tests
+cargo test my_test  # run a specific test my_test.rs
+    -- --nocapture  # show println! output from tests (hidden by default)
+
+# Build and run
+cargo build 		# creates target/debug/hello_cargo binary, also creates Cargo.lock file
+		--release	# creates target/release/hello_cargo binary. Takes longer to compile, but runs faster. Use this for production builds.
+                	# ./target/release/hello_cargo   <- run generated binary
+cargo clean     	# Delete target/ (reclaim gigabytes, force full rebuild)
+cargo run			# builds and runs the main binary in one step.
+    --release   	# Unless you add this flag cargo run will be 10-100x slower
+    --bin tool  	# Run a specific binary src/bin/tool.rs
+    --example demo  # Run specific example examples/demo.rs
+    -- --flag arg   # Everything after -- is passed to YOUR program as arguments
+
+# Dependencies
+cargo add serde         # Adds dependency (writes to Cargo.toml)
+          serde@1.0.30  # Add specific version of dependency
+cargo remove serde      # Remove dependency
+cargo update            # Bump deps to newest allowed by Cargo.toml
+cargo tree              # Dependency tree
+
+# Misc
+rustup update           	# update Rust itself
+rustup component add clippy # Install a component (clippy, rustfmt, etc.) for the current toolchain
+cargo install ripgrep   	# compile and install a binary crate globally to ~/.cargo/bin (on your PATH)
+              --path .  	# compile + install this project's binary globally to ~/.cargo/bin (on your PATH)
+
+# _____________________________________________________________________________________________
+# WORKING WITH EXAMPLES
+cargo build --examples      # Build all examples
+cargo build --example demo  # Build specific example examples/demo.rs
+cargo run --example demo    # Run example examples/demo.rs or examples/demo/main.rs
+./target/release/examples/demo  # Run example binary directly
+
+--release   # applies to all example build and run commands 
+
+# _____________________________________________________________________________________________
+# TERMINOLOGY
+- Package - what Cargo manages - one Cargo.toml file, plus the crates it builds.
+		    The thing that has a version number and gets published to crates.io.
+			Usually a package exposes one library crate of the same name.
+			A package produces one or more crates, under these constraints:
+				- at most one library crate (src/lib.rs)
+    			- any number of binary crates (src/main.rs + every src/bin/*.rs)
+    			- plus each tests/*.rs, examples/*.rs, benches/*.rs file as its own crate
+- Crate - A tree of modules starting at one root module. A single compilation unit, either a binary (main.rs root) or a library (lib.rs).
+		- It has exactly one root — main.rs (binary crate) or lib.rs (library crate), or any file in tests/ or examples/ or benches/.
+		- It compiles as one indivisible binary or library.
+		- It has a name (from Cargo.toml [package] name), and that name is how OTHER crates address it (myapp::, core_rust::, serde::).
+		- crate::path::to::module (or just path::to::module if they are on the same tree) 		-> How code inside the crate can reach other modules. 
+		- crate_name::path::to::module 	-> How code outside the crate can reach into it (if the module is public).
+		- One project can produce several crates: typically one library + one or more binaries + test/ + examples/ + benches/ crates.
+- Module - a namespace node within a crate - a named box that groups items and sets their visibility.
+		 - a module's body can live in three places: inline (mod foo { ... }), in a file (foo.rs), or in a directory (foo/mod.rs).
+		   The body location is incidental — the module is the logical node, not the file.
+		 - Modules are what mod declares (creates the node) and what pub gates (who may path through it).
+- .rlib - An .rlib is Rust's compiled library format — the artifact a library crate produces instead of an executable
+		- Think of it as "the crate, pre-compiled and boxed up so other crates can link against it without recompiling it."
+- Crossing a crate boundary = crossing to separately-compiled, separately-named code (a dependency, or main.rs→lib.rs). Addressed by crate name.
+- Crossing a module boundary = moving between namespaces inside the same compiled unit. Addressed by crate::/super::/self:: or a relative path.
+- Binary vs library crate
+	┌────────────────────────────────┬───────────────────────────────┬───────────────┐
+	│                                │         Binary crate          │ Library crate │
+	│ 1. Root file                   │ src/main.rs (or src/bin/*.rs) │ src/lib.rs    │
+	│ 2. Entry point                 │ has fn main                   │ none          │
+	│ 3. Output                      │ executable                    │ .rlib         │
+	│ 4. Importable by other crates? │ No — dead end                 │ Yes — by name │
+	│ 5. How many per package?       │ many                          │ at most one   │
+	└────────────────────────────────┴───────────────────────────────┴───────────────┘
+	- A binary is a consumption dead-end: nothing can use it, so nothing can test it from outside, reuse it, or build a second
+	- A library is consumable by name.
+
+- Debug build (target/debug/) - Compiles fast, but runs 10-100x slower. Usually used for inner development loop.
+                              The output of `cargo build` or `cargo run` if you don't specify `--release`.
+- Release build (target/release/) - Compiles slower, but runs much faster. Usually used for production. 
+                                  The output of `cargo build` or `cargo run` if you specify `--release`.
+- Global source cache (~/.cargo/registry/) - Downloaded dependency source goes into this single global cache.
+                                           A crate's source is downloaded once ever, regardless of how many projects use it.
+- Compiled dependencies (target/debug/deps/) - Dependencies are compiled per-project into the project's target/debug/deps/.
+                                             So the source is stored globally, but compiled per project locally. 
+
+
+# Crate = Mod Tree
+Entrypoint - By default Rust tries to find main file at src/main.rs <- this is the entrypoint from which it starts crawling the "tree".
+Everything the crawl doesn't touch is invisible — not compiled, not analyzed, not part of the program. So without mod lines, only crate root is visible, and everything else is not "connected".
+Connecting files is done via mod declarations - which are always relative to THIS file.
+
+src/                                  
+├── main.rs      mod helpers;	<- crawl helpers.rs module
+│				 mod runtime;	<- crawl runtime dir, starting from mod.rs inside it
+├── helpers.rs     
+├── runtime/                          
+│	├── mod.rs   	pub mod runtime;	<- crawl runtime.rs module, and make it public, so importers can use it
+│	│				mod utils;			<- crawl utils.rs module, but keep it private - only usable inside runtime/ and its subtree
+│	├── runtime.rs  
+│	└── utils.rs
+└── notifiers/
+	├── mod.rs		mod slack;						<- crawl slack.rs module, but keep it private
+	│				pub use slack::SlackNotifier;	<- only export SlackNotifier, so outsiders can use it with crate::notifiers::SlackNotifier
+	└── slack.rs
+
+# Mod statements do two things
+1. Reachability - Tell compiler what to crawl, starting from the main file -> to build a tree of modules (modules = files).
+   Everything the crawl doesn't touch is invisible — not compiled, not analyzed, not part of the program.
+2. Privacy - Tell importing code which modules are public (usable) and which are private - usable by modules inside the dir and its subtree only.
+	# module fully private
+	mod slack;		# usable only inside the module dir and its subtree
+	
+	# module fully public
+	pub mod slack;	# usable by any module in the program
+
+	# module private but re-exported public items
+	mod slack;				# private module
+	pub use slack::notify;	# only specific itemsa are usable by outsiders
+
+	# Note: to be fully usable by outsiders the items itself must also be public
+	pub fn notify() {}	# public function
+
+	# Privacy summary
+	- Privacy rule: An item can see the private items of its own module and of every ancestor module (via super::), but not a sibling module's private items. 
+	  Struct fields are separately private, so a pub struct from another module still hides its fields.
+	- The module containing items must be public `pub`; OR calling code must be a sibling or child module; OR item must be re-exported with `pub use item;`.
+	- The item itself must be public - `pub fn` or `pub struct` etc.
+
+
+# Use statements
+Use statements are just shortcuts to avoid typing the full path every time. 
+They are not technically "importing" anything, because everything in a crate is already "connected". 
+Rust doesn't check for circular usages within a crate.
+External crates: `cargo add serde` then `use serde::Serialize;` (source cached in ~/.cargo/registry).
+
+std::collections::HashMap 			  		# You can do this directly in the code anywhere.
+use std::collections::HashMap; 			  	# Creates a shortcut so that you can just write HashMap::new() 
+use std::collections::{HashSet, VecDeque};  # Group use
+use std::time::Duration as Dur;             # Aliasing
+
+use crate::path::to::module;  		# Usage relative to crate root 'crate' -> can do anywhere in the code to import module on another branch for example
+use relative::path::to; 			# Usage relative to current module
+use super::path::to; 				# Usage relative to parent module
+
+use crate_name::path::to::module; 	# Use a different crate 
+
+# Mod tree != Use graph
+- mod tree (crate): top-down, built by crawling from the root. Decides what exists.
+- usage graph (use/paths): a directed graph across the tree, gated by pub. Ideally a one-way DAG 
+  between subsystems — enforced as acyclic between crates (cargo), convention-only between modules within a crate.
+
+# _____________________________________________________________________________________________
+# Alternative mod style
+Think of it as a subsystem inside a dir and a single file standing in front of it with the same name.
+src/
+├── main.rs     mod runtime;
+├── runtime.rs  pub mod utils;
+└── runtime/
+    └── utils.rs
+
+# _____________________________________________________________________________________________
+# Project structure - quick thing
+This structure applies to the main binary crate as well as any binary src/bin/binary_name/ or bench or example which are directories.
+.
+├── Cargo.lock
+├── Cargo.toml
+└── src/
+	├── main.rs        mod api; mod service; mod model;  + the wiring
+	├── api/           (files say: use crate::service::ScoringService;)
+	├── service/       (files say: use crate::model::Record;)
+	└── model/
+
+
+# Project structure - serious 
+- The entire application (and all its subsystems) is a single library crate.
+- main.rs is a thin caller which does lib_name::app::myapp::start_server();
+- tests/, examples/, benches/, src/bin/ are all separate crates, and they all use the library crate.
+.
+├── Cargo.lock
+├── Cargo.toml
+├── src/
+│   ├── lib.rs
+│   ├── main.rs
+│   └── bin/
+│       ├── named-executable.rs
+│       ├── another-executable.rs
+│       └── multi-file-executable/
+│           ├── main.rs
+│           └── some_module.rs
+├── benches/
+│   ├── large-input.rs
+│   └── multi-file-bench/
+│       ├── main.rs
+│       └── bench_module.rs
+├── examples/
+│   ├── simple.rs
+│   └── multi-file-example/
+│       ├── main.rs
+│       └── ex_module.rs
+└── tests/
+    ├── some-integration-tests.rs
+    └── multi-file-test/
+        ├── main.rs
+        └── test_module.rs
+
+Cargo.toml	You specify package info and dependencies/requirements there. 
+
+Cargo.lock	Frozen shapshot of dependencies and their transitive dependencies.
+			      If present 'cargo build' will download and use exact versions from this file to build the project.
+			      Importantly, unless explicitly bumped by hand in Cargo.toml or via 'cargo update', the exact versions 
+			      stay the same, so there is no risk of a newer version with a bug silently crashing your build.
+
+# LOCATION CONVENTIONS
+# Location    	Becomes       							Compile     			Run       					Lands in target/debug/
+src/lib.rs    	the library (one only)                  cargo build    			—           				libmypkg.rlib		Anything else needed? No. Just add src/lib.rs file (and wire mod lines 
+																																and mod.rs of course) and you have the main package library that everything 
+																																else can use via mypkg::path::to::anything. Name comes from [package] name.
+																																(dashes -> underscores).
+
+src/main.rs   	default binary (named after package)    cargo build    			cargo run   				mypkg (top level)
+src/bin/*.rs  	one binary per file or dir              cargo build    			cargo run --bin NAME   		NAME (top level)
+
+examples/*.rs 	one binary per file or dir              cargo build --examples  cargo run --example NAME   	examples/NAME		Examples are your scratchpad for quick experiments. Each is a standalone fn main()
+																																with access to your library (use mypkg::...). Rust-analyzer aware.
+benches/*.rs  	one binary per file or dir              cargo build --benches   cargo bench    				deps/NAME-<hash>
+
+tests/*.rs    	one test crate per file or dir          (built by test)  		cargo test    				deps/NAME-<hash>
+
+- The pattern behind the table: top-level target/debug/ holds the runnable end-user binaries (main, src/bin/*, custom [[bin]]). 
+  Everything auxiliary — examples, tests, benches — sits one level down (examples/, or deps/ with a fingerprint hash).
+- examples, benches, tests - either a single file (examples/foo.rs) or a dir with main.rs + other files (examples/foo/main.rs + examples/foo/bar.rs). 
+
+# _____________________________________________________________________________________________
+# PRODUCTIONISING CHECKLIST
+
+- no panicing operations
+- enums are matched. All arms are handled
+
+
