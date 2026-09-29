@@ -260,6 +260,29 @@ fn main() {
     // ⭐ You can't import a type (struct/enum) and not import it's trait. Importing a struct from a crate auto-brings all it's behaviours (impls) with it.
     // Importing an impl is not even a thing. Since you can only add impl to types in the same crate - you can think of impl blocks as "fused" to the type they are impl-ing and always go with them everywhere.
 
+    
+    // _____________________________________________________________________________________________
+    // TYPE
+    // Creates an alias for a type that already exists. 
+    type Km = i32;          // type ALIAS = TYPE; 
+    let distance: Km = 10;
+
+    // Reasons why it exists
+    // 1. Shorten a verbose type you'd otherwise be repeating everywhere
+    type Thunk = Box<dyn Fn(i32) -> i32 + Send>;
+
+    // 2. One place to change - pin the type once and every signature is short (e.g. error types)    
+    type Result<T> = std::result::Result<T, String>;        // This is literally what `std::io::Result<T>` is.
+
+    // --------------------------
+    
+    // Inside a trait 'type' declares an associated type.
+    trait Something { type Item; }
+
+    // Inside impl Trait, 'type' implements the associated type
+    impl Something for String { type Item = i32; }
+
+    
     // _____________________________________________________________________________________________
     // DERIVE
     // - #[derive(...)] is an attribute that tells the compiler to auto-generate a trait impl block for your type.
