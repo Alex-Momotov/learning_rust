@@ -1,5 +1,6 @@
 #![allow(unused)]
 
+use std::ffi::FromBytesWithNulError;
 use std::{convert::identity, ops::Deref, rc::Rc, sync::Arc};
 use std::alloc::{Layout, alloc, dealloc, realloc};
 
@@ -49,10 +50,10 @@ fn main() {
 
         
     /* _____________________________________________________________________________________________
-    NORMAL EXECUTION (NOTHING DYNAMIC)
+    NORMAL EXECUTION (NO "PLACES" POINTING TO 'DYNAMIC THINGS')
     During normal execution of a program heap can grow and shrink based on runtime information all the time, because runtime inputs can decide which 
     types to create and how many of each. E.g. based on cli input create 10 cats or 20 dogs. That's not what this topic is about, because no single "place" 
-    represents something dynamic (unknown starting size or growable size). Instead, dynamism is when a single "place" changes the size it represents. */
+    is pointing to a 'dynamic thing'. Instead, dynamism is when a single "place" is pointing to a 'dynamic thing' (unknown or changable size). */
     let rand_type = rand::random_bool(0.50);      
     let rand_how_many = rand::random_range(1..=5);
 
@@ -78,15 +79,16 @@ fn main() {
 
     Sized           Values. All values and "places". Known, fixed size. Pointers are also of a fixed size (Sized), so they CAN occupy "places".
     !Sized          Syntax for a pointer (not values). PTR !Sized. Syntax denoting what 'dynamic thing' a pointer is pointing to. 
-                    Three !Sized primitives: [T], str (dynamically allocated region of memory), dyn Trait (a runtime selected type for a value). 
+                    Three !Sized primitives: [T], str (dynamically allocated regions of memory), dyn Trait (a runtime selected type for a value). 
                     Note: a type doesn't necessarily mean a type of a value. [T], str, dyn Trait are types but can never be values directly. Only can be PTR !Sized.
 
-    * Note:         Together Pointer and !Sized (syntax of a pointer) point to a fixed snapshot of the Unnamed (dynamic) thing. Snapshots because the Unnamed dynamic things 
+    * Note:         Together Pointer and !Sized (syntax of a pointer) point to a fixed snapshot of a 'dynamic thing'. Snapshots because the 'dynamic things' 
                     can change at runtime all the time, and so you can only point at a fixed snapshot of it, as it was at a given time. Hence fixed.     
 
-    Dynamic thing   Abstract phenomena (not values, can't be written down). Unsafe allocated region of memory; concrete type selected at runtime. 
+    Dynamic thing   Abstract phenomena (not values, can't be written down). 'Dynamic' meaning it can change size or be of an unknown starting size, in contrast to the size rule. 
+                    Only two 'dynamic things' exist: 1. Dynamically allocated region of memory (unsafe code); 2. Concrete type dynamically selected at runtime. 
 
-
+    
     ___________________________________________________
     DYNAMIC THING 1 - DYNAMICALLY ALLOCATED REGIONS OF MEMORY
 
@@ -114,7 +116,7 @@ fn main() {
         PTRstr -> the region of memory contains valid UTF-8.
     PTR - can be &, &mut, Box, Rc, Arc and changes the pointer semantics.
 
-    
+
     Relationship between Vec, String and PTR[T], PTRstr:
         - Vec, String - create and manage dynamically allocated regions of memory using unsafe code.
         - PTR[T], PTRstr - point to dynamically allocated regions of memory managed by Vec, and String, OR any other region of memory (stack, heap, static).
@@ -172,167 +174,173 @@ fn main() {
     };
     
 
-    // _____________________________________________________________________________________________
-    // STATIC VS DYNAMIC DISPATCH
-    // The topic of static vs dynamic dispatch is all about how to do polymorphism over a trait (interface). 
+    /* _____________________________________________________________________________________________
+    STATIC VS ENUM VS DYNAMIC DISPATCH
+    The topic of static vs enum vs dynamic dispatch is all about how to do polymorphism over a trait (interface). 
+
+    POLYMORPHISM
+    Polymorphism - when code operates on an interface with potentially different implementing concrete types. "I don't care what it is, as long as it can quack I will treat it as a duck".
+    Where polymorphism occurs:
+    1. Function params and returns - I (a function) don't care what the implementation is, as long as it can .quack() I will call .quack() on it.
+                                     A single function that returns an interface implementation, where the choice of implementation can be different between function calls.
+    2. Generic bounds - when a generic parameter is expected to implement an interface (trait). The genric code can then call that trait's methods.
+    3. Heterogeneous collections - one collection holding interfaces (traits) of different implementing types.
+    4. Pluggable behaviour - struct/enum holding a trait object. E.g. App struct holding Logger trait.
+    
+    DISPATCH
+    Dispatch - The act of choosing which function body actually runs for a given call. When you have a trait with two implementations behind it, how should compiler decide which implementation to call?
+    - Static dispatch - The disambiguation happens at compile time, by looking at call sites and baking the implemnetation address at each.
+    - Dynamic dispatch - the disambiguation happens at runtime, by fetching the implementation address from a pointer. Then call whatever address that turns out to be.   */
 
     
-    // POLYMORPHISM
-    // Polymorphism - when code operates on an interface that can be called with many different concrete types. "I don't care what it is, as long as it can quack I will treat it as a duck".
-    // Where polymorphism occurs:
-    //   1. Function params and returns - I (a function) don't care what the implementation is, as long as it can .quack() I will call .quack() on it.
-    //                                    A single function that returns an interface implementation, where the choice of implementation can be different between function calls.
-    //   2. Generic bounds - when a generic parameter is expected to implement an interface (trait). The genric code can then call that trait's methods.
-    //   3. Heterogeneous collections - one collection holding interfaces (traits) of different implementing types.
-    //   4. Pluggable behaviour - struct/enum holding a trait object. E.g. App struct holding Logger trait.
+    /* _____________________________________________________________________________________________
+    STATIC DISPATCH
+
+    MONOMORPHISATION
+    When using generics, the compiler writes out a separate copy of the code for each concrete type you actually use with T (generic param) substituted.
+    More precisely: For each distinct set of concrete types substituted into a generic item's type parameters, compiler emits a specialised copy.
+    Monomorphisation does two jobs:
+    1. Generic params are substituted with concrete types.
+       fn foo<T>(a: T)    ->    foo(5) and foo("hi")    ->   fn foo(a: i32)
+                                                        ->   fn foo(&str)
+    2. Traits are substituted with concrete implementations.
+       fn foo(a: impl Animal)        desugars to     fn foo<T: Animal>(a: T)
+       fn foo<T: Animal>(a: T)       foo(Cat) and foo(Dog)   ->    fn foo(a: Cat)
+                                                             ->    fn foo(a: Dog)
+       This is the same mechanism as 1 (T being substituted with concrete types), the only difference is that the bound restricts which types are allowed to be substituted.
+    Behefit - Zero runtime cost - each copy is as fast as the hand written non-generic one would be, because it doesn't do any lookups or indirections.
+    Cost - Binary size and compile time - increase. Calling a generic function for 30 types compiles it 30 times. This is a real contributor to Rust's compile times. 
 
     
-    // MONOMORPHISATION
-    // When using generics, the compiler writes out a separate copy of the code for each concrete type you actually use with T substituted.
-    // More precisely: For each distinct set of concrete types substituted into a generic item's type parameters, compiler emits a specialised copy.
-    // Monomorphisation does two jobs:
-    // 1. Generic params are substituted with concrete types.
-    //    fn foo<T>(a: T)    ->    foo(5) and foo("hi")    ->   fn foo(a: i32)
-    //                                                     ->   fn foo(&str)
-    // 2. Traits are substituted with concrete implementations.
-    //    fn foo(a: impl Animal)        desugars to     fn foo<T: Animal>(a: T)
-    //    fn foo<T: Animal>(a: T)       foo(Cat) and foo(Dog)   ->    fn foo(a: Cat)
-    //                                                          ->    fn foo(a: Dog)
-    //    This is the same mechanism as 1 (T being substituted with concrete types), the only difference is that the bound restricts which types are allowed to be substituted.
-    // The cost:
-    // 1. Zero runtime cost - each copy is as fast as the hand written non-generic one would be, because it doesn't do any lookups or indirections.
-    // 2. Binary size and compile time - increase. Calling a generic function for 30 types compiles it 30 times. This is a real contributor to Rust's compile times.
-
-    
-    // DISPATCH
-    // Dispatch - the act of choosing which function body actually runs for a given call. 
-    //            When you have a trait with two implementations behind it, how should compiler decide which implementation to call?
-    //            In other words, how should the compiler disambiguate the implementation in order to execute it?
-    // Static dispatch - The disambiguation happens at compile time, by looking at call sites and baking the implemnetation address at each.
-    //                   Monomorphisation isn't a side-effect of static dispatch — it IS static dispatch.
-    // Dynamic dispatch - the disambiguation happens at runtime, by fetching the implementation address from a pointer. Then call whatever address that turns out to be.
-
-    
-    // _____________________________________________________________________________________________
-    // STATIC DISPATCH
-    // ⭐ Think of impl Trait (e.g. impl Animal) as a type hidden from you as a developer, but known and pinned by the compiler (because of monomorphisation).
-    // ⭐ When you see impl Trait (or any version of it), think: monomorphisation, duplicate concrete implementations, NOT interleavable together, no indirection/pointer cost; slightly bigger binaries / compile times.
+    Static dispatch IS monomorphisation with a trait involved. It is: 1. Generics params with a trait bound; 2. Anonymous generics (which desugar to generic params with a trait bound)
+    ⭐ Think of impl Trait (e.g. impl Animal) as a type hidden from you as a developer, but known and pinned by the compiler (because of monomorphisation).
+    ⭐ When you see impl Trait (or any version of it), think: monomorphisation, duplicate concrete implementations, NOT interleavable together, no indirection/pointer cost; slightly bigger binaries / compile times.  */
 
 
-    // Binding trait as variable
-    // You can't do 'let a: Animal = Cat'. Why?
-    // - If you know the concrete type, just use it. Obscuring it away behind a trait buys you nothing. You're giving up concrete type's inherent methods for no gain. 
-    //    Opaqueness only makes sense at a scope boundary such as when passing trait object to a function, but in a single scope there is no boundary. So the language enforces this as a rule.
-    // - If you want a single variable that can hold either Cat or a Dog, then that's not possible with static dispatch anyway (what size would it be?). You want dynamic dispatch for this.
-
-    // let a: Animal = Cat;                                              // ❌ You can't directly annotate a binding as 'impl Trait'
-    // let v: Vec<impl Animal> = Vec::new();                             // ❌ Can't have 'impl Trait' as a collection type
-    let c = Cat;                                                    // ✅ Instead, just use a concrete type. It will obscure into the trait automatically when it needs to. E.g. when it needs to cross over a boundary such as going into a function.
-    let animal = return_animal();                           // ✅ Can bind it directly from function returning impl Trait. Here we have no choice but to use the opaque trait api, so we can and we do. Note: we don't annotate it 'impl Trait'
-    let v = vec![return_animal(), return_animal()];    // ✅ A collection of traits
-    let f = Forest { animal: return_animal() };     // ✅ Struct holding a trait
+    // Instantiating a trait
+    let a = Cat;                        // Instantiate directly as concrete type
+    let a = return_animal();    // From a function return (static dispatch) - Must be without annotation (impl Trait), because generic params aren't allowed in let statements
 
 
     // Taking trait as param
-    // Aka 3 ways to write static dispatch (monomorphisation):
-    fn take_animal1(a: impl Animal) {}          // 1. Anonymous generic (impl Trait), meaning the generic param itslef is not shown, as it's not used beyond specifying the generic bound of the param
-    fn take_animal2<T: Animal>(a: T) {}         // 2. Generic with a trait bound. Anonymous generic desugars to exactly this.
-    fn take_animal3<T>(a: T) where T: Animal {} // 3. Generic with a trait bound, written differently
+    fn take_animal1(a: impl Animal) {}          // 1. Anonymous generic (impl Trait), meaning the generic param itslef is not shown, as it's not used beyond specifying the generic bound. Desugars to 2.
+    fn take_animal2<T: Animal>(a: T) {}         // 2. Generic with a trait bound.
+    fn take_animal3<T>(a: T) where T: Animal {} // 3. Generic with a trait bound. Written differently
 
     take_animal1(Cat);                          // Obscures into the trait automatically at funciton boundary
     take_animal1(Dog);
 
     
     // Returning a trait
-    fn return_animal() -> impl Animal {
+    fn return_animal() -> impl Animal {     // This is the only way. No desugaring is happening to a generic param
         Cat 
     }
 
 
     // LIMITATION OF STATIC DISPATCH
-    // What monomorphisation cannot do - is to mix multiple types inside one invocation - which compiled copy would handle that? What would be the returned size? That's why 'dyn' exists.
+    // What monomorphisation cannot do - is to mix multiple types inside one invocation - which compiled copy would handle that? What would be the returned size? That's why 'dyn' and enum dispatch exist.
+    // This is because each type occupies a different size, and so a single "place" (which must be Sized) like a collection item or fn return slot wouldn't know how much memory to reserve.
 
     // 1. Can't do heterogeneous collections
     // let v : Vec<impl Animal> = Vec::new();     // ❌ not possible
 
-    // 2. Single function cannot return different implementations
+    // 2. Single function call cannot return different implementations
     fn i_return_animal_impl(flag: bool) -> impl Animal {
         // if flag { return Dog; }       // ❌ not possible
         return Cat;
     }
 
-    // Why the limitation? 
-    // Because each type takes a diff amount of bytes in memory, and so for example collection wouldn't know how much memory to reserve for each item if the are all different types.
-
     
     // _____________________________________________________________________________________________
     // ENUM DISPATCH
-    // Before reaching for dynamic dispatch, check if what you want is a closed set which can be implemented with enum
-    // Heterogeneous collections and returning diff implemetattions from same function call are possible because 
-    // the collection allocates the size of the biggest enum variant to each capacity slot in memory, so in the worst case a little bit of memory is wasted.
+    // When using enum dispatch, each "place" allocates the memory equal to the size of the biggest enum variant.
+    // Use enum dispatch when: type needs to be decided at runtime AND the list of type choices is a known closed set that you control.
+    // Benefit: 
+    //    Fast dispatch, no indirection, heterogoneous collections, single function call returning different variants at runtime.
+    // Cost: 
+    //    1. Slight waste of space (each element reserves as much space as the biggest element)
+    //    2. Adding a new variant requires updating all match statements
 
-    // in a real enum dispatch each enum variant would take db connection as param
-    enum AnyAnimal {  
-        Cat,
-        Dog
-    }
-
-    // Overcoming generics limitation 1: Heterogeneous collections
-    let v: Vec<AnyAnimal> = vec![AnyAnimal::Cat, AnyAnimal::Dog];
-
-    // Overcoming generics limitation 2: Returning different trait implementations per call
-    fn i_return_db_impl3(flag: bool) -> AnyAnimal {
-        if flag { 
-            return AnyAnimal::Cat; 
-        } else {
-            return AnyAnimal::Dog;     // ✅ now possible
-        }
-    }
-
-    // Cost:
-    // 1. Every element is as big as the size of the largest variant
-    // 2. Adding a new subtype requires editing the enum to add new variant and editing all the match statements
-
-    // Benefit:
-    // Heterogeneous collections and funcs that return diff types per call without cost of indirection
-
-    // ______________________________________________
-    // ENUM DISPATCH (NEW)
-
-    // 1. Enum dispatch (Just the enum, data lives in variants)
-    enum Beast { 
-        Cat { name: String }, 
-        Dog { name: String, good_boy: bool } }
     
-    impl Beast {
-        fn speak(&self) -> String {
+    // 1. Simple (just the enum, data lives in variants)
+    enum Database { 
+        Postgres { host: String }, 
+        MySql { host: String, port: u16 } 
+    }
+    
+    impl Database {
+        fn connect(&self) -> String {
             match self {
-                Beast::Cat { name }     => format!("{name} says meow"),
-                Beast::Dog { name, .. } => format!("{name} says woof"),
+                Database::Postgres { host }     => format!("Connected to Postgres: {host}"),
+                Database::MySql { host, port } => format!("Connected to {host} {port}"),
             }
         }
     }
 
-    // 2. Enum dispatch (Enum wrapping structs)
-    struct Catt { name: String, indoor: bool }
-    impl Catt { fn speak(&self) -> String { format!("{} says meow", self.name) } }
-
-    struct Dogg { name: String, breed: String }
-    impl Dogg { fn speak(&self) -> String { format!("{} says woof", self.name) } }
     
-    enum Beastt { Cat(Catt), Dog(Dogg) }
-  
-    impl Beastt {
-        fn speak(&self) -> String { 
-            match self { 
-                Beastt::Cat(c) => c.speak(), 
-                Beastt::Dog(d) => d.speak() 
-            } 
+    // 2. Middle (structs, enum wrapping them, no trait)
+    struct Reddis { host: String, port: u32 }
+    struct MurMur { host: String }
+    impl Reddis { fn store(&mut self, msg: String) {} }
+    impl MurMur { fn store(&mut self, msg: String) {} }
+
+    enum Cache {
+        Reddis(Reddis),
+        MurMur(MurMur)
+    }
+
+    impl Cache {
+        fn store(&mut self, msg: String) {
+            match self {
+                Cache::Reddis(reddis) => reddis.store(msg),
+                Cache::MurMur(mur_mur) => mur_mur.store(msg),
+            }
         }
     }
 
+
+    // 3. Full (structs, each implementing trait, enum wrapping them, and implementing trait itself)
+    trait QueueLike { fn send(&mut self, msg: String) -> Result<String, String>; }
+
+    struct Kafka { host: String, consumer_group: String }
+    struct Nats { host: String, port: u16 }
+
+    impl QueueLike for Kafka { fn send(&mut self, msg: String) -> Result<String, String> { Ok("done".to_string()) } }
+    impl QueueLike for Nats { fn send(&mut self, msg: String) -> Result<String, String> { Ok("completed".to_string()) } }
+
+    enum Queue {
+        Kafka(Kafka),
+        Nats(Nats)
+    }
+
+    impl QueueLike for Queue {
+        fn send(&mut self, msg: String) -> Result<String, String> {
+            match self {
+                Queue::Kafka(kafka) => kafka.send(msg),
+                Queue::Nats(nats) => nats.send(msg),
+            }
+        }
+    }
+
+
+    // ___________________________________________________
+    // Enum dispatch - Overcoming limitations of static dispatch
     
-    
+    // Heterogeneous collections
+    let postgres = Database::Postgres { host: "localhost".to_string() };
+    let mysql = Database::MySql { host: "localhost".to_string(), port: 1020 };
+    let v: Vec<Database> = vec![postgres, mysql];
+
+    // Returning different variants per call
+    fn i_return_db_impl(flag: bool) -> Database {
+        if flag { 
+            return Database::Postgres { host: "localhost".to_string() }; 
+        } else {
+            return Database::MySql { host: "localhost".to_string(), port: 1020 };
+        }
+    }
+
+
     // _____________________________________________________________________________________________
     // DYNAMIC DISPATCH
 
@@ -393,10 +401,59 @@ fn main() {
     // impl Trait <- means "one specific concrete type that the compiler fully knows", you're just aren't writing its name. 
     // Monomorphized, fully Sized, no pointers, no indirection, duplicated concrete implementation per type.
 
+
+    /* 
+    REFERENCE: HOW DYN TRAIT POINTERS ARE IMPLEMENTED AND VTABLE
+    How dyn Trait pointer looks like in memory:
+    dyn Trait pointer ──data pointer──▶ the actual Cat struct
+                     └─vtable pointer─▶ the vtable ──[3]──▶ speak() machine code
+                     
+    1. fetch the data (struct) by following the data pointer; 
+    2. follow the vtable pointer and in the vtable follow the method's pointer to fetch the function's code; 
+    3. feed the data as parameter to the function
+   
+    */
+    struct DynTraitPointer {
+        data_memory_address: usize,
+        v_table_memory_address: usize,
+    }
+
+    struct VTableForTypeTraitPair {     // 1st hop: from v_table_memory_address to this table
+        type_size: usize,
+        pointer_to_drop_code: usize,
+        // ...
+        pointer_to_method_a: usize,     // 2nd hop: from this table to method a
+        pointer_to_method_b: usize,
+        pointer_to_method_c: usize,
+        // ...
+    }
+
+    
+    // _____________________________________________________________________________________________
+    // A + B + C SYNTAX - BOTH STATIC AND DYNAMIC DISPATCH
+    // Means the thing must implement all the traits specified. 
+
+    // Static dispatch:
+    // For static dispatch: A, B, C can be normal traits
+    fn i_take_thing<T: Animal + Send + Sync>(a: T) {}         // Static dispatch, generic bounds syntax
+    fn i_take_thing2(a: impl Animal + Send + Sync) {}         // Static dispatch, anonymous generic syntax
+
+    // Dynamic dispatch
+    // For dynamic dispatch: First trait has to a normal trait, and the rest (everything after +) have to be auto-traits or lifetimes. 
+    fn i_take_thing3(a: Box<dyn Animal + Send + Sync>) {}     // Dynamic dispatch. Only works because Send and Sync are auto-traits
+
+    
     // _____________________________________________________________________________________________
     /* 
     
     SUMMARY
+
+    Decision tree:
+    Is the type known at compile time?
+      Yes -> Static dispatch
+      No -> Do I know every type when I write the code (closed set)?
+            Yes -> Enum dispatch
+            No -> dynamic dispatch
     
                                           │ impl Trait (static dispatch) │ dyn Trait (dynamic dispatch)  │
     How many concrete types at this spot? │ Exactly one                  │ Potentially many              │
@@ -439,49 +496,6 @@ fn main() {
            no indirection, closed set, wastes space to the largest variant
     
     */
-
-    // _____________________________________________________________________________________________
-    /* 
-    REFERENCE: HOW DYN TRAIT POINTERS ARE IMPLEMENTED AND VTABLE
-    How dyn Trait pointer looks like in memory:
-    dyn Trait pointer ──data pointer──▶ the actual Cat struct
-                     └─vtable pointer─▶ the vtable ──[3]──▶ speak() machine code
-                     
-    1. fetch the data (struct) by following the data pointer; 
-    2. follow the vtable pointer and in the vtable follow the method's pointer to fetch the function's code; 
-    3. feed the data as parameter to the function
-   
-    */
-    struct DynTraitPointer {
-        data_memory_address: usize,
-        v_table_memory_address: usize,
-    }
-
-    struct VTableForTypeTraitPair {     // 1st hop: from v_table_memory_address to this table
-        type_size: usize,
-        pointer_to_drop_code: usize,
-        // ...
-        pointer_to_method_a: usize,     // 2nd hop: from this table to method a
-        pointer_to_method_b: usize,
-        pointer_to_method_c: usize,
-        // ...
-    }
-
-
-    // _____________________________________________________________________________________________
-    // REFERENCE: A + B + C syntax
-    // Means the thing must implement all the traits specified. 
-
-    // Static dispatch:
-    // For static dispatch: A, B, C can be normal traits
-    fn i_take_thing<T: Animal + Send + Sync>(a: T) {}         // Static dispatch, generic bounds syntax
-    fn i_take_thing2(a: impl Animal + Send + Sync) {}         // Static dispatch, anonymous generic syntax
-
-    // Dynamic dispatch
-    // For dynamic dispatch: First trait has to a normal trait, and the rest (everything after +) have to be auto-traits or lifetimes. 
-    fn i_take_thing3(a: Box<dyn Animal + Send + Sync>) {}     // Dynamic dispatch. Only works because Send and Sync are auto-traits
-    
-
     // _____________________________________________________________________________________________
 
 }

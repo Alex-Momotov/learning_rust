@@ -59,6 +59,16 @@ fn main() {
         fn sound(&self) { println!("meow"); }
     }
 
+    // Instantiating
+    // You can't annotate a value directly as trait 'let a: Animal' because a trait is not a type - its a constraint something can satisfy. Annotation = memory layout information.
+    // Also, there are several ways to have a trait value (static vs dynamic dispatch), with different tradeoffs each, and so Rust makes you pick one explicitly.
+    // let a: Database = Postgres;   // ❌
+    
+    // Your choices:
+    let db = Postgres;                       // Instantiate directly as concrete type
+    let db = return_db();               // From a function return (static dispatch) - Must be without annotation (impl Trait), because generic params aren't allowed in let statements
+    let db: Box<dyn Database> = Box::new(Postgres);    // Pointer to the value (dynamic dispatch)
+
     
     // Using
     // After implementing a trait for a type you can automatically start calling that trait's methods on the type's instances.
@@ -200,16 +210,16 @@ fn main() {
     
     // Using (2) - taking as param (without bounds)
     // When you don't specify associated type's bound, all you can do with it is pretty much just call the 
-    fn something1(c: impl Container) -> impl Container {
-        let x = c.get();
-        c.from_another(x)
-    }
+    // fn something1(c: impl Container) -> impl Container {
+    //     let x = c.get();
+    //     c.from_another(x)
+    // }
     
-    // Using (3) - taking as param (with bound)
-    // Constraining in a bound - means we specify a bound as a trait and specify it's associated type
-    fn something(c: impl Container<X = i32>) {
-        let i: i32 = c.get();   
-    }
+    // // Using (3) - taking as param (with bound)
+    // // Constraining in a bound - means we specify a bound as a trait and specify it's associated type
+    // fn something(c: impl Container<X = i32>) {
+    //     let i: i32 = c.get();   
+    // }
     // _____________________________________________________________________________________________
     
 }
@@ -227,9 +237,23 @@ fn function<T>() {}
 const instance: MyType<i32> = MyType { data: 42 };
 
 
+trait Database {
+    fn connect(&self);
+}
 
+struct MySql;
+impl Database for MySql { 
+    fn connect(&self) { println!("MySql connected!"); } 
+}
 
+struct Postgres;
+impl Database for Postgres { 
+    fn connect(&self) { println!("Postgres connected!"); } 
+}
 
+fn return_db() -> impl Database {
+    Postgres
+}
 
 
 /* 
