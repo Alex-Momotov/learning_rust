@@ -212,7 +212,7 @@ fn main() {
     Cost - Binary size and compile time - increase. Calling a generic function for 30 types compiles it 30 times. This is a real contributor to Rust's compile times. 
 
     
-    Static dispatch IS monomorphisation with a trait involved. It is: 1. Generics params with a trait bound; 2. Anonymous generics (which desugar to generic params with a trait bound)
+    Static dispatch IS monomorphisation with a trait bound. It is: 1. Generics params with a trait bound; 2. Anonymous generics (which desugar to generic params) with a trait bound
     ⭐ Think of impl Trait (e.g. impl Animal) as a type hidden from you as a developer, but known and pinned by the compiler (because of monomorphisation).
     ⭐ When you see impl Trait (or any version of it), think: monomorphisation, duplicate concrete implementations, NOT interleavable together, no indirection/pointer cost; slightly bigger binaries / compile times.  */
 
@@ -254,7 +254,8 @@ fn main() {
     // _____________________________________________________________________________________________
     // ENUM DISPATCH
     // When using enum dispatch, each "place" allocates the memory equal to the size of the biggest enum variant.
-    // Use enum dispatch when: type needs to be decided at runtime AND the list of type choices is a known closed set that you control.
+    // Use when: 
+    //    Type needs to be decided at runtime AND the list of type choices is a known closed set that you control.
     // Benefit: 
     //    Fast dispatch, no indirection, heterogoneous collections, single function call returning different variants at runtime.
     // Cost: 
@@ -340,40 +341,47 @@ fn main() {
         }
     }
 
+    // Polymorphism - enums can do polymorphism / act as interfaces on their own, without traits at all, pretty cool
+    fn experiment(db: Database) {
+        db.connect();
+    }
 
     // _____________________________________________________________________________________________
     // DYNAMIC DISPATCH
 
-    // ⭐ How does dynamic dispatch solve the limitation of static dispatch? dyn Trait is a pointer to a concrete type, and since all pointers are of the same size in memory you can store them in a collection or return from func etc.
-    // You essentially buy memory size determinism (and heterogeneity) with the price of pointer indirection.
-    // ⭐ When you see dyn Trait (behind a pointer), think: sized pointers to concrete implementations; interleavable together; indirection is the cost.
+    // PTR dyn Trait is a pointer to a concrete type, and since the pointer itself is of a fixed known size, it can occupy "places" like collection item or function return.
+    // 'dyn Trait' on it's own is actually a proper type, but as stated in earlier section just because it's a type doesn't mean it can be instantiated. Some types are just qualifiers for PTR in front of it, so 'dyn Trait' is a qualifier to the pointer in front of it - "What is PTR pointing to?".
+    // The PTR can be: &, &mut, Box<...>, Rc<...>, Arc<...> (most common ones).
 
-    // dyn Trait -> means "Some type that implements Trait, unknowable at compile time, reachable only by pointer". 
-    //              We know which concrete type only at runtime. We don't know its size (at compile time), so can't hold directly, can't put in a collection/struct directly.
-    //              You can never have one as a bare value, because its 'unsized', meaning we (the compiler) don't know it's size (it could be Cat, could be Dog, so how much memory should we allocate for the variable?).
-    //              You can only have it behind a pointer (&, &mut, Box, Rc, Arc) , because the pointer is of a fixed size. 
-    // &          - read pointer
-    // &mut       - mutable pointer
-    // Box<...>   - box pointer
-    // Rc<...>    - reference counted pointer
-    // Arc<...>   - atomic reference counted pointer
+    // Benefit:  Heterogeneous collections, functions returning diff implementations, no need to update all usage occurances when adding a new implementing type (open set).
+    // Cost:     Indirection (every access is through pointer)
+    // Use when: Open set of types is required (plugins), indirection is irrelevant (not in hot path)
 
-    // let a: dyn Animal = Cat;                // ❌ can't hold directly or put in a collection or struct directly
-    let a: &dyn Animal = &Cat;                 // ✅ &dyn           - read pointer
-    let a: &mut dyn Animal = &mut Cat;         // ✅ &mut dyn       - mutable pointer
-    let a: Box<dyn Animal> = Box::new(Cat);    // ✅ Box<dyn ...>   - box pointer
-    let a: Rc<dyn Animal> = Rc::new(Cat);      // ✅ Rc<dyn ...>    - reference counted pointer
-    let a: Arc<dyn Animal> = Arc::new(Cat);    // ✅ Arc<dyn ...>   - atomic reference counted pointer
 
-    // Automatic coercion
-    // PTRvalue -> coerces to PTRdyn Trait automatically when value implements Trait
+    // Instantiating
+    // PTR dyn Trait <- PTR value coercion happens automatically when value implements the Trait
+    let a: &dyn Animal = &Cat;                 // &          - read borrow pointer
+    let a: &mut dyn Animal = &mut Cat;         // &mut       - mutable borrow pointer
+    let a: Box<dyn Animal> = Box::new(Cat);    // Box<...>   - owning pointer
+    let a: Rc<dyn Animal> = Rc::new(Cat);      // Rc<...>    - reference counted pointer
+    let a: Arc<dyn Animal> = Arc::new(Cat);    // Arc<...>   - atomic reference counted pointer    
 
-    // Overcoming generics limitation 1: Heterogeneous collections
+
+    // Taking as param
+
+    // Returning
+    
+
+
+    // ___________________________________________________
+    // Dynamic dispatch - Overcoming limitations of static dispatch
+    
+    // Heterogeneous collections
     let v: Vec<&dyn Animal> = vec![&Cat, &Dog];
     let v: Vec<&mut dyn Animal> = vec![&mut Cat, &mut Dog];
     let v: Vec<Box<dyn Animal>> = vec![Box::new(Cat), Box::new(Dog)];
 
-    // Overcoming generics limitation 2: Returning different trait implementations per call
+    // Returning different trait implementations per call
     fn i_return_db_impl2(flag: bool) -> Box<dyn Animal> {
         if flag { 
             return Box::new(Cat); 
@@ -382,6 +390,7 @@ fn main() {
         }
     }
 
+    
     // Dyn compatibility
     // It order to be dyn compatible a trait must follow the below rules. Rules can be summarised as "everything has to be against self only."
     // 1. No generic methods - because they'd be monomorphised - the vtable would neeed one slot per possible T.
@@ -391,28 +400,16 @@ fn main() {
     //    Returning Self where Self: Sized;     is fine also, because we exclude it from vtable entirely basically
     // 4. No associated constants
 
-    // dyn A + B + C
-    // Just like for generics, the syntax means "the thing must implement all traits specified - A, B, C"
-    // For dynamic dispatch: First trait has to a normal trait, and the rest (everything after +) have to be auto-traits or lifetimes. 
-    let a: Box<dyn Animal + Send + Sync> = Box::new(Cat);    // works because Send and Sync are auto-traits
 
-    
-    // IMPL TRAIT (Static dispatch)
-    // impl Trait <- means "one specific concrete type that the compiler fully knows", you're just aren't writing its name. 
-    // Monomorphized, fully Sized, no pointers, no indirection, duplicated concrete implementation per type.
-
-
-    /* 
-    REFERENCE: HOW DYN TRAIT POINTERS ARE IMPLEMENTED AND VTABLE
+    // ___________________________________________________
+    /* REFERENCE: DYN TRAIT POINTER IMPLEMENTATION AND VTABLE
     How dyn Trait pointer looks like in memory:
     dyn Trait pointer ──data pointer──▶ the actual Cat struct
                      └─vtable pointer─▶ the vtable ──[3]──▶ speak() machine code
                      
     1. fetch the data (struct) by following the data pointer; 
     2. follow the vtable pointer and in the vtable follow the method's pointer to fetch the function's code; 
-    3. feed the data as parameter to the function
-   
-    */
+    3. feed the data as parameter to the function */
     struct DynTraitPointer {
         data_memory_address: usize,
         v_table_memory_address: usize,
