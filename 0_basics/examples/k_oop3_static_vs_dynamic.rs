@@ -360,8 +360,10 @@ fn main() {
     // _____________________________________________________________________________________________
     // DYNAMIC DISPATCH
 
-    // PTR dyn Trait is a pointer to a concrete type, and since the pointer itself is of a fixed known size, it can occupy "places" like collection item or function return.
+    // PTR dyn Trait is a pointer to a concrete type, and since the pointer itself is of a fixed known size, it can occupy "places" like collection item or function return. 
     // The PTR can be:      &, &mut, Box<...>, Rc<...>, Arc<...>
+    // Note:                'dyn Trait' on it's own is actually a proper type, but as stated in earlier section just because it's a type doesn't mean it can be instantiated. 
+    //                      Some types are just qualifiers for PTR in front of it, so 'dyn Trait' is a qualifier to the pointer in front of it - "What is PTR pointing to?".
     // Benefit:   Heterogeneous collections, functions returning diff implementations, no need to update all usage occurances when adding a new implementing type (open set).
     // Cost:      Indirection (every access is through pointer)
     // Use when:  Open set of types is required (plugins), indirection is irrelevant (not in hot path)
