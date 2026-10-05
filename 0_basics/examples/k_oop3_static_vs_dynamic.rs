@@ -217,12 +217,12 @@ fn main() {
     ⭐ When you see impl Trait (or any version of it), think: monomorphisation, duplicate concrete implementations, NOT interleavable together, no indirection/pointer cost; slightly bigger binaries / compile times.  */
 
 
-    // Instantiating a trait
+    // Instantiating
     let a = Cat;                        // Instantiate directly as concrete type
     let a = return_animal();    // From a function return (static dispatch) - Must be without annotation (impl Trait), because generic params aren't allowed in let statements
 
 
-    // Taking trait as param
+    // Taking as param
     fn take_animal1(a: impl Animal) {}          // 1. Anonymous generic (impl Trait), meaning the generic param itslef is not shown, as it's not used beyond specifying the generic bound. Desugars to 2.
     fn take_animal2<T: Animal>(a: T) {}         // 2. Generic with a trait bound.
     fn take_animal3<T>(a: T) where T: Animal {} // 3. Generic with a trait bound. Written differently
@@ -231,7 +231,7 @@ fn main() {
     take_animal1(Dog);
 
     
-    // Returning a trait
+    // Returning
     fn return_animal() -> impl Animal {     // This is the only way. No desugaring is happening to a generic param
         Cat 
     }
@@ -254,10 +254,8 @@ fn main() {
     // _____________________________________________________________________________________________
     // ENUM DISPATCH
     // When using enum dispatch, each "place" allocates the memory equal to the size of the biggest enum variant.
-    // Use when: 
-    //    Type needs to be decided at runtime AND the list of type choices is a known closed set that you control.
-    // Benefit: 
-    //    Fast dispatch, no indirection, heterogoneous collections, single function call returning different variants at runtime.
+    // Use when:  Type needs to be decided at runtime AND the list of type choices is a known closed set that you control.
+    // Benefit:   Fast dispatch, no indirection, heterogoneous collections, single function call returning different variants at runtime.
     // Cost: 
     //    1. Slight waste of space (each element reserves as much space as the biggest element)
     //    2. Adding a new variant requires updating all match statements
@@ -325,41 +323,52 @@ fn main() {
 
 
     // ___________________________________________________
-    // Enum dispatch - Overcoming limitations of static dispatch
+    // Instantiating
+    let postgres = Database::Postgres { host: "localhost".to_string() };
+
+    
+    // Taking as param
+    // Polymorphism - enums can do polymorphism / act as interfaces on their own, without traits at all, pretty cool
+    fn i_take_enum(db: Database) {
+        db.connect();
+    }
+
+    
+    // Returning
+    fn i_return_enum() -> Database {
+        Database::MySql { host: "localhost".to_string(), port: 1020 }
+    }
+
+    // ___________________________________________________
+    // Overcoming limitations of static dispatch
     
     // Heterogeneous collections
     let postgres = Database::Postgres { host: "localhost".to_string() };
     let mysql = Database::MySql { host: "localhost".to_string(), port: 1020 };
     let v: Vec<Database> = vec![postgres, mysql];
 
+
     // Returning different variants per call
     fn i_return_db_impl(flag: bool) -> Database {
         if flag { 
-            return Database::Postgres { host: "localhost".to_string() }; 
+            return Database::Postgres { host: "localhost".to_string() };
         } else {
             return Database::MySql { host: "localhost".to_string(), port: 1020 };
         }
-    }
-
-    // Polymorphism - enums can do polymorphism / act as interfaces on their own, without traits at all, pretty cool
-    fn experiment(db: Database) {
-        db.connect();
     }
 
     // _____________________________________________________________________________________________
     // DYNAMIC DISPATCH
 
     // PTR dyn Trait is a pointer to a concrete type, and since the pointer itself is of a fixed known size, it can occupy "places" like collection item or function return.
-    // 'dyn Trait' on it's own is actually a proper type, but as stated in earlier section just because it's a type doesn't mean it can be instantiated. Some types are just qualifiers for PTR in front of it, so 'dyn Trait' is a qualifier to the pointer in front of it - "What is PTR pointing to?".
-    // The PTR can be: &, &mut, Box<...>, Rc<...>, Arc<...> (most common ones).
+    // The PTR can be:      &, &mut, Box<...>, Rc<...>, Arc<...>
+    // Benefit:   Heterogeneous collections, functions returning diff implementations, no need to update all usage occurances when adding a new implementing type (open set).
+    // Cost:      Indirection (every access is through pointer)
+    // Use when:  Open set of types is required (plugins), indirection is irrelevant (not in hot path)
 
-    // Benefit:  Heterogeneous collections, functions returning diff implementations, no need to update all usage occurances when adding a new implementing type (open set).
-    // Cost:     Indirection (every access is through pointer)
-    // Use when: Open set of types is required (plugins), indirection is irrelevant (not in hot path)
-
-
+    
     // Instantiating
-    // PTR dyn Trait <- PTR value coercion happens automatically when value implements the Trait
+    // PTR dyn Trait <- PTR value coercion happens automatically when value implements the Trait.
     let a: &dyn Animal = &Cat;                 // &          - read borrow pointer
     let a: &mut dyn Animal = &mut Cat;         // &mut       - mutable borrow pointer
     let a: Box<dyn Animal> = Box::new(Cat);    // Box<...>   - owning pointer
@@ -368,18 +377,20 @@ fn main() {
 
 
     // Taking as param
-
-    // Returning
+    fn i_take_dyn_trait(a: &dyn Animal) {
+        a.sound();
+    }
     
-
-
+    // Returning
+    fn i_return_dyn_trait() -> Box<dyn Animal> {
+        Box::from(Cat)
+    }
+    
     // ___________________________________________________
     // Dynamic dispatch - Overcoming limitations of static dispatch
     
     // Heterogeneous collections
     let v: Vec<&dyn Animal> = vec![&Cat, &Dog];
-    let v: Vec<&mut dyn Animal> = vec![&mut Cat, &mut Dog];
-    let v: Vec<Box<dyn Animal>> = vec![Box::new(Cat), Box::new(Dog)];
 
     // Returning different trait implementations per call
     fn i_return_db_impl2(flag: bool) -> Box<dyn Animal> {
@@ -391,16 +402,17 @@ fn main() {
     }
 
     
-    // Dyn compatibility
+    // ___________________________________________________
+    // REFERENCE Dyn compatibility
     // It order to be dyn compatible a trait must follow the below rules. Rules can be summarised as "everything has to be against self only."
     // 1. No generic methods - because they'd be monomorphised - the vtable would neeed one slot per possible T.
-    // 2. No functions without 'self' param (methods only) - you need 'self' to resolve the type
+    // 2. All function must take 'self' - you need 'self' to resolve the type
     // 3. No Self in return position - the caller can't have a value of unknown size back
     //    Returning Box<Self>                   is fine.
     //    Returning Self where Self: Sized;     is fine also, because we exclude it from vtable entirely basically
     // 4. No associated constants
 
-
+    
     // ___________________________________________________
     /* REFERENCE: DYN TRAIT POINTER IMPLEMENTATION AND VTABLE
     How dyn Trait pointer looks like in memory:
@@ -425,7 +437,7 @@ fn main() {
         // ...
     }
 
-    
+
     // _____________________________________________________________________________________________
     // A + B + C SYNTAX - BOTH STATIC AND DYNAMIC DISPATCH
     // Means the thing must implement all the traits specified. 
@@ -439,61 +451,31 @@ fn main() {
     // For dynamic dispatch: First trait has to a normal trait, and the rest (everything after +) have to be auto-traits or lifetimes. 
     fn i_take_thing3(a: Box<dyn Animal + Send + Sync>) {}     // Dynamic dispatch. Only works because Send and Sync are auto-traits
 
-    
-    // _____________________________________________________________________________________________
-    /* 
-    
-    SUMMARY
 
-    Decision tree:
-    Is the type known at compile time?
-      Yes -> Static dispatch
-      No -> Do I know every type when I write the code (closed set)?
-            Yes -> Enum dispatch
-            No -> dynamic dispatch
+    /* _____________________________________________________________________________________________
+    SUMMARY - Static vs Enum vs Dynamic Dispatch
+
+
+                Benefit                         Cost                                    Use when
+    STATIC      Fast, wastes zero memory        Larger binary, longer comp time;        Hot path, closed set of types, no need for hetero col & diff return
+                                                Can't do hetero col & diff return       
+
+    ENUM        Fast;                           Wastes a little memory                  Hot path, closed set of types, need for hetero col & diff return
+                Hetero col & diff return        (sized to largest variant)              
+
+    DYNAMIC     Wastes zero memory;             Slow (indirection);                     Not on hot path, open set of types, need for hetero col & diff return.
+                Hetero col & diff return        Dyn compatible traits only              Cost of indirection matters in tight inner loops on hot paths. No need to optimise prematurely.
     
-                                          │ impl Trait (static dispatch) │ dyn Trait (dynamic dispatch)  │
-    How many concrete types at this spot? │ Exactly one                  │ Potentially many              │
-    Does the compiler know which?         │ Yes                          │ No                            │
-    Different types per branch?           │ No                           │ Yes                           │
-    Sized?                                │ Yes — stored inline          │ No — needs a pointer (&, Box) │
-    Cost                                  │ Monomorphization (code size) │ Pointer chase + no inlining   │
-    
-                                 │   <T: Trait> (static)   │     &dyn Trait (dynamic)     
-    Resolved                     │ compile time            │ runtime                      
-    Code generated               │ one copy per type       │ one copy total               
-    Call cost                    │ direct, inlinable       │ one indirection, no inlining 
-    Binary size                  │ grows per instantiation │ constant                     
-    Compile time                 │ slower                  │ faster                       
-    Heterogeneous collections    │ ❌ impossible           │ ✅ the point                 
-    Trait must be dyn-compatible │ no                      │ yes                          
 
     HOW TO PICK
-    Hot path; one implementer per call site, known at compile time.     Static dispatch, <T: Trait>
-    Hot path; closed set you own; exhaustiveness checking;              Enum
-    Open set; heterogeneous collections you don't control;              Dynamic dispatch, dyn Trait
+    Hot path, type is known at compile time, don't need heterogeneous collections -> Static dispatch (Generics)
+                                                   Hot path, type is a closed set -> Enum dispatch
+                                             Not on hot path, type is an open set -> Dynamic dispatch
 
-    TIPS
-    - Cost of indirection matters in tight inner loops on hot paths. No need to optimise prematurely.
-    
-    SYNTAX SUMMARY
-    <T>             Static dispatch, generic param
-    <T: A>          Static dispatch, generic param with bound
-    impl A          Static dispatch, anonymous trait
-    dyn A           Dynamic dispatch
 
-    SIZE AS THE KEY CONCEPT: every value's size + layout must be known at compile time (Sized). Incl function return types and collection elements.
-    So to be polymorphic AT ALL under that constraint, pick one of three:
-      ├─ MONOMORPHISATION  - a type-specific copy per type        → static dispatch
-      │    hardcoded callee, inlinable, zero cost
-      │    but: a copy serves ONE type, so it can't serve a mix at runtime
-      ├─ INDIRECTION       - pointer + vtable; all ptrs same size → dynamic dispatch
-      │    one copy, type decided at runtime, pointer chase, no inlining
-      └─ UNION OF KNOWN SIZE - enum, sized as its largest variant → enum dispatch
-           no indirection, closed set, wastes space to the largest variant
-    
-    */
-    // _____________________________________________________________________________________________
+    _____________________________________________________________________________________________ 
+    */ 
+
 
 }
 
