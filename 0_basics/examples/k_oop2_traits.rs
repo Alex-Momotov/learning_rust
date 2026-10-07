@@ -23,42 +23,36 @@ fn main() {
     
     
     // Defining
-    // 1. The body is a list of signatures without the body. Read this as "any type that is Animal must be able to tell you its name and make a sound."
-    // 2. Default methods - they have a body and implementers can use it for free or override them
-    //    Required vs default is your API's minimum-vs-convenience split. When designing a trait, ruthlessly minimise required methods — every one is a cost paid by every implementer, forever.
-    //    So a trait becomes: implement those 1-2 things, get those 20 things for free. The trait defines the algorithm and the implementer fills in the holes
-    //    That's how iterator work: you implement next() and std gives you map, filter, collect, etc.
-    // 2. Self - Inside a trait Self means "whatever teh concrete type ends up implementing this". Used for returning the implementer's own type with '-> Self'.
-    // 3. self, &self, &mut self - they mean the implementer's instance itself and define the api contract
-    // 4. Associated type - is declared 'type x;' inside a trait and allows the trait to refer to it as a generic param using 'Self::x' everywhere, and for the implementer to choose what type it is.
+    // Trait content is a list of signatures without the body. Read this as a contract / list of behaviours every implementing type must satisfy.
+    // Good trait design    - Required vs default methods is your API's minimum-vs-convenience split. When designing a trait, ruthlessly minimise required methods to make it easier for implementers.
+    //                        So a trait becomes: implement those 1-2 things, get those 20 things for free. The trait defines the algorithm and the implementer fills in the holes.
+    // Self                     - Inside a trait Self means "whatever teh concrete type ends up implementing this". Used for returning the implementer's own type with '-> Self'.
+    // Self::X                  - Reference to associated type
+    // self, &self, &mut self   - they mean the implementer's instance itself and define the api contract
     trait Animal {
-        type X;                     // Associated type
-        const LEGS: i32;            // Associated constant - Every implementer must add the const value
-        const HEARTS: i32 = 1;      // Default associated constant 
-        
-        fn new() -> Self;           // Associated function 
-        fn name(&self) -> String;   // Method
-        fn age(&self) -> Self::X;   // associated type is referred to as Self::X
-        fn sound(&self);            
-        fn non_required(&self) {    // Default method - Has body. Can call required methods - Because implementers are guaranteed to provide them
-            self.sound();
-        }
-    }                               
+        type X;                     // Associated type - Implementer must choose what type it is, then the trait can refer to it as 'Self::X'.
+        const LEGS: i32;            // Associated constant - Every implementer must add the const value. Associated constants can have a default value e.g. 'const LEGS: i32 = 4;' (implementers can override)
 
-    
+        fn new() -> Self;           // Associated function 
+        fn sound(&self);            // Method
+        fn non_required(&self) {    // Default method - Has body, can call required methods - Because implementers are guaranteed to provide them. Implementers can use it for free or override it.
+            self.sound();           
+        }
+    }
+
+
     // Implementing
-    // 1. You must implement every required method. 
-    // 2. You can't add extra methods or constants (things not declared by trait).
+    // You must implement every required method, associated type, and associated constant. 
+    // You can't add extra methods or constants (things not declared by trait).
     impl Animal for Cat {
         type X = i32;           // Implementer chooses the associated type once. This pins it for this type and trait forever
         const LEGS: i32 = 4;
 
         fn new() -> Self { Cat { alive: true, hungry: false } }
-        fn name(&self) -> String { "Kitty".to_string() }
-        fn age(&self) -> i32 { 5 }                       // Note: once we choose the associated type as i32 in 'type X = i32' we refer to it as i32 throughput the rest of implementation
         fn sound(&self) { println!("meow"); }
     }
 
+    
     // Instantiating
     // You can't annotate a value directly as trait 'let a: Animal' because a trait is not a type - its a constraint something can satisfy. Annotation = memory layout information.
     // Also, there are several ways to have a trait value (static vs dynamic dispatch), with different tradeoffs each, and so Rust makes you pick one explicitly.
@@ -76,9 +70,22 @@ fn main() {
     let cat = Cat::new();               // same, from type name
     let cat = <Cat as Animal>::new();   // fully qualified
     cat.sound();                             // method syntax
-    cat.age();                               // associated type returned from a method. Associated type is inferred here automatically, no need to specify it 
 
 
+    // _____________________________________________________________________________________________
+    // You cannot implement the same trait for a given type twice 
+    // (unless the trait is generic and implementations use diff generic types)
+    trait Tr {};
+    trait GenTr<T> {};
+    
+    struct A;
+    
+    impl Tr for A {}
+    // impl Tr for A {}     ❌ Not allowed to implement it second time
+    
+    impl GenTr<i32> for A {}
+    impl GenTr<bool> for A {}   // ✅ Multiple implemnetations allowed, because they use different generic param types (monomorphisation, so in fact they are different traits)
+    
     // _____________________________________________________________________________________________
     // Fully qualified syntax
     // You only need the fully qualified syntax when a type implements multiple traits that have colliding methods, so you need to disambiguate
@@ -110,6 +117,7 @@ fn main() {
     trait Walk { 
         fn walk(&self); 
     }
+    
     trait Run: Walk {       // to depend on more that one trait the syntax is 'trait Run: Walk + Crawl {}'
         fn run(&self) {
             self.walk()
@@ -196,18 +204,102 @@ fn main() {
     impl CatSound for Meow {}
     let s: Box<dyn CatSound + Send + Sync> = Box::new(Meow { data: "meow".to_string() });
 
-    // 1. Auto-traits are market traits - they don't have methods, instead they assert a property (e.g. "safe to move to another thread", etc).
+    // 1. Auto-traits are marker traits - they don't have methods, instead they assert a property (e.g. "safe to move to another thread", etc).
     // 2. There are only a handful of them: Send, Sync, Unpin, UnwindSafe, RefUnwindSafe
     // 3. Automatic traits Send and Sync mean every type gets correct thread-safety marking for free without authors thinking about it,
     //    and a single non-thread-safe field poisons the whole type exactly as it should
     
 
     // _____________________________________________________________________________________________
-    // TODO (needs redoing) 
-    // 1. Syntax for specifying Associated type bounds 
-    // 2. implementing an iterator
+    // Associated types vs Generic traits
+
+    // The difference between the two is that associated type means this is a normal trait without generic params and so the number of times you can implement it for a given type is restricted to once only.
+    // Choose associated type over generic trait when it makes sense to have only one trait implementaiton (like with iterators).
     
+    // Generic trait - multiple implementations per type. Which one is chosen by the caller at the call site.
+    // Associated type - one implemnetation per type. Which one is chosen by the implemented once.
+
+
+    // Generic trait - can have multiple implementations for a given type
+    trait GenericIter<T> {
+        fn next(&mut self) -> Option<T>;
+    }
+    // Normal trait - the number of implementations is restricted to one. Implementer chooses and pins associated type once
+    trait AssociatedTypeIter {
+        type Item;
+        fn next(&mut self) -> Option<Self::Item>;
+    }
+
     
+    struct MyArray {
+        array: [i32; 10],
+        i: usize
+    }
+
+    // First implementation for T = i32
+    impl GenericIter<i32> for MyArray {
+        fn next(&mut self) -> Option<i32> {
+            match self.array.get(self.i) {
+                Some(n) => {self.i += 1; return Some(*n)},
+                None => return None,
+            }
+        }
+    }
+
+    // Second implementation for T = bool     (we can implement generic trait for a type multiple times, even though it doesn't make sense)
+    impl GenericIter<bool> for MyArray {
+        fn next(&mut self) -> Option<bool> {
+            Some(true)
+        }
+    }
+
+    // The only one implemnetation, pinning the associated type
+    impl AssociatedTypeIter for MyArray {
+        type Item = i32;
+
+        fn next(&mut self) -> Option<Self::Item> {
+            match self.array.get(self.i) {
+                Some(n) => {self.i += 1; return Some(*n)},
+                None => None,
+            }
+        }
+    }
+
+    // _____________________________________________________________________________________________
+    // Implementing an Iterator
+    
+    struct NumberArray {
+        array: [i32; 5],
+        i: usize
+    }
+
+    impl Iterator for NumberArray {
+        type Item = i32;
+
+        fn next(&mut self) -> Option<i32> {
+            match self.array.get(self.i) {
+                Some(n) => {self.i += 1; return Some(*n)},
+                None => return None,
+            }
+        }
+    }
+
+    // You get all the methods for free now
+    let mut arr = NumberArray { array: [1, 2, 3, 4, 5], i: 0};
+
+    for i in &mut arr {
+        println!("{:?}", i);
+    }
+    
+    let v: Vec<i32> = arr.into_iter()
+        .map(|i| i * i)
+        .filter(|i| i % 2 == 0)
+        .collect();
+    
+
+
+    // _____________________________________________________________________________________________
+
     // Using (2) - taking as param (without bounds)
     // When you don't specify associated type's bound, all you can do with it is pretty much just call the 
     // fn something1(c: impl Container) -> impl Container {
@@ -254,27 +346,4 @@ impl Database for Postgres {
 fn return_db() -> impl Database {
     Postgres
 }
-
-
-/* 
-oop.rs -> is about syntax of oop constructs.
-oop2.rs (this file) -> about patterns of writing oop code
-
-OOP principles:
-- Single responsibility
-- Encapsulation
-- Abstraction
-- Minimal Coupling
-
-
-[] You typical class (struct + impl) with invariants as private fields, and the public / private mehtods - how to design this?
-   Book chapters: 5.1, 6.1, 17.1, 17.2, 17.3
-[] Composition, not inheritance
-[] The getter story
-[] Polymorphism - when to use static vs dynamic dispatch
-   https://www.youtube.com/watch?v=m_phdVlkr6U
-[] Data modelling
-
-*/
-
 

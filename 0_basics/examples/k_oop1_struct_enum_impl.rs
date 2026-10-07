@@ -284,31 +284,7 @@ fn main() {
 
     
     // _____________________________________________________________________________________________
-    // DERIVE
-    // - #[derive(...)] is an attribute that tells the compiler to auto-generate a trait impl block for your type.
-    //   e.g. #[derive(Debug)] auto-generates impl std::fmt::Debug for Point {...} 
-    // - Derive is recursive, meaning every field's type must itself implement the trait you're deriving. e.g. #[derive(Clone)] on a struct only works if all its fields are Clone.
-    // - When to write impl by hand - whenever the auto-generated logic isn't what you want.
 
-    //     Debug      -> enables printing with {:?} and {:#?}.
-    //     Clone      -> enables .clone()
-    //     Copy       -> makes '=' do bitwise copy of your type instead of moving. Only works if every field is Copy
-    //     PartialEq  -> ==
-    //     Default    -> Dot::default(), all fields zero/empty
-    //     Hash       -> usable as a HashMap key
-
-    #[derive(Debug, Clone, Hash, Default, Eq, PartialEq)]
-    struct Cattt { name: String, hungry: bool }
-
-    let cat = Cattt { name: String::from("Witchy"), hungry: true };
-    let mut hash_map: HashMap<Cattt, i32> = HashMap::new();
-
-    println!("{:?}", cat);          // can print
-    hash_map.insert(cat, 42);       // can insert into hash map
-    let cat = Cattt::default();  // can create a default cat
-
-    // _____________________________________________________________________________________________
-    
 }
 
 fn take_user(u: User) {}
