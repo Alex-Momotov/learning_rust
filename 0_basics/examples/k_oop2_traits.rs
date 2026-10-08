@@ -299,19 +299,17 @@ fn main() {
 
 
     // _____________________________________________________________________________________________
-
-    // Using (2) - taking as param (without bounds)
-    // When you don't specify associated type's bound, all you can do with it is pretty much just call the 
-    // fn something1(c: impl Container) -> impl Container {
-    //     let x = c.get();
-    //     c.from_another(x)
-    // }
+    // Associated types - specifying the bound
+    // Just like normal generic bounds specifying associated type's bound allows the code to do more things. The syntax is Type<AssociatedType = Type>.
     
-    // // Using (3) - taking as param (with bound)
-    // // Constraining in a bound - means we specify a bound as a trait and specify it's associated type
-    // fn something(c: impl Container<X = i32>) {
-    //     let i: i32 = c.get();   
-    // }
+    fn known(mut it: impl Iterator<Item = i32>) {
+        let i: i32 = it.next().unwrap();            // ✅ it.next() return is known and we can call integer methods on it
+    }
+
+    fn unknown(mut it: impl Iterator) {
+        let i = it.next().unwrap();      // ❌ it.next() can be called but we don't know anything about the associated type, so can't call integer methods on i
+    }
+    
     // _____________________________________________________________________________________________
     
 }

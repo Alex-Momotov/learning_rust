@@ -5,35 +5,6 @@ use std::collections::HashMap;
 
 fn main() {
     /* _____________________________________________________________________________________________
-    ATTRIBUTES
-    
-    An attribute is written as #[...] above a struct, enum, function, field, or module.
-    Its a label telling compiler or other tools to 'do something' at compile time - generate code, remove code, silence warning. 
-    Its a similar mechanism to Python's decorators and Java's annotations, with the only difference that Rust's attributes act entirely at compile time. 
-
-
-    Why attributes exist?
-    Because we need a way to say things about the code that aren't part of the code itself.
-      - "Generate the boring Clone impl for me."
-      - "Don't warn me about unused variables in this file."
-      - "Lay this struct out in memory exactly like C does."
-      - etc ...
-    The language could have added a keyword for each of these, however it would make the language complex, so instead it has one uniform syntax for all of these.
-    In addition, libraries can add their own attributes without changing the language. 
-
-
-    The syntax
-    Syntax               Example                   Description
-    #[name]              #[test]                   Plain
-    #[name(arg1, arg2)]  #[derive(Debug, Clone)]   With args
-    #[name = value]      #[doc = "hi"]             With key=value args
-    #![name]             #![allow(unused)]         Inner form: applies to the thing it's inside. Plain #[...] applies to the item after it. #![...] applies to the item around it.    
-
-
-    Three families of attributes:
-    1. 
-    
-    _____________________________________________________________________________________________
     MACROS   (BRIEFLY)
     Attributes are implemented using macros, and you can write your own. 
     A macro is code that writes code. It runs at compile time, takes some of your source code as input and produces more source code, which is then compiled normally.
@@ -43,6 +14,72 @@ fn main() {
         - Declarative macros - They match patterns (foo!PATTERN) and expand that into code. Example: vec![1, 2, 3].
                                vec![]    -> expands into ->   Vec::new()
         - Procedural macros - These are real Rust functions that receive your code and return new code. Must be defined in its own crate. Example: #[derive(Serialize)]
+       
+    _____________________________________________________________________________________________ 
+    ATTRIBUTES
+    An attribute is written as #[...] above a struct, enum, function, field, or module.
+    Its a label telling compiler or other tools to 'do something' at compile time - generate code, remove code, silence warning. 
+    Its a similar mechanism to Python's decorators and Java's annotations, with the only difference that Rust's attributes act entirely at compile time. 
+
+
+    WHY ATTRIBUTES EXIST
+    Because we need a way to say things about the code that aren't part of the code itself.
+      - "Generate the boring Clone impl for me."
+      - "Don't warn me about unused variables in this file."
+      - "Lay this struct out in memory exactly like C does."
+      - etc ...
+    The language could have added a keyword for each of these, however it would make the language complex, so instead it has one uniform syntax for all of these.
+    In addition, libraries can add their own attributes without changing the language. 
+
+
+    THE SYNTAX
+    Syntax               Example                   Description
+    #[name]              #[test]                   Plain
+    #[name(arg1, arg2)]  #[derive(Debug, Clone)]   With args
+    #[name = value]      #[doc = "hi"]             With key=value args
+    #![name]             #![allow(unused)]         Inner form: applies to the thing it's inside. Plain #[...] applies to the item after it. #![...] applies to the item around it.    
+
+    _____________________________________________________________________________________________ 
+    THREE FAMILIES OF ATTRIBUTES
+    1. Built-in instructions to compiler. Most common:
+        #[derive(...)]            generate trait impls (below)
+        
+        #[allow(unused)]          allow unused variables
+        #[must_use]               warn if a caller ignores the return value
+        #[deprecated]             warn anyone who uses this
+        
+        #[cfg(test)]              only compile this when running tests
+        #[test]                   this function is a test
+
+        Doc comments are attributes 
+        /// adds two numbers        ->  desugars to  ->      #[doc = " Adds two numbers"]
+
+    2. Derive. #[derive(Clone)] means "write the obvious impl Clone for me". The compiler generates a real impl block, exactly as if you'd typed it.
+       Derive is a code generator for trait impls - and it's typically "do this thing to every field".
+
+        #[derive(Clone)]
+        struct Point { x: i32, y: i32 }
+        
+        ↓ the compiler generates roughly this, invisibly:
+        
+        impl Clone for Point {
+            fn clone(&self) -> Self {
+                Point { x: self.x.clone(), y: self.y.clone() }
+            }
+        }
+
+        When to derive vs write impl by hand
+        When "do the same thing to every field" is the right behaviour (compare every field, clone every field, print every field) -> derive it.
+        When it isn't -> write the impl yourself.
+
+        Derive is recursive
+        Every field's type must itself implement the trait you're deriving. e.g. #[derive(Clone)] on a struct only works if all its fields are Clone.
+        If one of the fields isn't Clone then you'd get the compiler error.
+        
+
+    3. Attributes from libraries. 
+
+    
     */
 
 
@@ -54,7 +91,6 @@ fn main() {
     // DERIVE
     // - #[derive(...)] is an attribute that tells the compiler to auto-generate a trait impl block for your type.
     //   e.g. #[derive(Debug)] auto-generates impl std::fmt::Debug for Point {...} 
-    // - Derive is recursive, meaning every field's type must itself implement the trait you're deriving. e.g. #[derive(Clone)] on a struct only works if all its fields are Clone.
     // - When to write impl by hand - whenever the auto-generated logic isn't what you want.
 
     //     Debug      -> enables printing with {:?} and {:#?}.

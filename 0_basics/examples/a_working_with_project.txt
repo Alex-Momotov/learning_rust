@@ -9,34 +9,45 @@
   Not having runtime inside the binary is what allows the binary to be tiny. Also no GC pauses and high performance. 
 - Fearless concurrency - the borrow checker proves the absense of data races, so you can parallelise agressively in places where you wouldn't data in C++ or other languages.
 
-- Why I love rust
-    - Data (struct) is separate from methods that can act on it (impl blocks) - and this is forced.
-      This is my Facade-catalogue pattern enforced.
-    - Functions don't have default or named parameters - all parameters are required.
-      This is my preference enforced strictly by the language. 
-      No need to hunt down where a parameter came from - default? named? every function call is exhaustively self explanatory
-    - No inheritance - you use composition instead
-    - Errors as values - easier to reason about your program. Because at every step you have to handle what COULD happen.
+Reasons to choose Rust (correctness and cost are even more important than performance, and hence makes a valid option for e.g. a microservice)
+- Performance - cpu and memory
+- Correctness - easier to express correct code, two aspects:
+    - Business logic - due to static typing, enums and pattern matching
+    - Program - due to memory safety, and concurrency safety
+- Cost 
+    - Lower cloud bill - can serve a large traffic with a tiny instance due to low cpu and memory usage
+    - Easier to productionise - tiny native binaries, no runtime to install and manage versions of, no GC to optimise
+
+
+Why I love rust
+- Data (struct) is separate from methods that can act on it (impl blocks) - and this is forced.
+  This is my Facade-catalogue pattern enforced.
+- Functions don't have default or named parameters - all parameters are required.
+  This is my preference enforced strictly by the language. 
+  No need to hunt down where a parameter came from - default? named? every function call is exhaustively self explanatory
+- No inheritance - you use composition instead
+- Errors as values - easier to reason about your program. Because at every step you have to handle what COULD happen.
   
-- Why learn to write by hand? 
-  - To know what's possible and be a better collaborator with AI Agents
-  - It makes you a better software developer in general because it makes you think about memory ownership, heap, and stack, and how to write safer code.
+Why learn to write by hand? 
+- To know what's possible and be a better collaborator with AI Agents
+- It makes you a better software developer in general because it makes you think about memory ownership, heap, and stack, and how to write safer code.
 
-- Usages: microservices (replaces Java because more safe and uses 5-10x less memory, no GC pauses, cold-start time, lower cloud bill). Arguments: faster to 
-          develop in (because less incidents + bugs) and cheaper to run; db / query engines, stream processing; batch jobs, lambda functions; 
-          Python native extensions; Cli tools
+Usages
+microservices (replaces Java because more safe and uses 5-10x less memory, no GC pauses, cold-start time, lower cloud bill). Arguments: faster to 
+develop in (because less incidents + bugs) and cheaper to run; db / query engines, stream processing; batch jobs, lambda functions; 
+Python native extensions; Cli tools
 
 
-- ⚠️ Tips to make working with Rust easier:
-    - /examples -> for learning and prototyping. Much easier, since you can run individual files, and no need to create a project to quickly test something.
-    - Turn on type hints -> because apis return a mixture of owned/&/&mut and it's hard to remember them all. Especially in iterator pipelines.
-    - Custom snippets -> for hard to type repeated syntax such as println!("{:?}", x)
-    - Use your IDE actions -> match - cmd+. "add missing arms" - write out match arms
-                           -> impl trait - cmd+. "implement missing members" - write out trait methods
+⚠️ Tips to make working with Rust easier:
+- /examples -> for learning and prototyping. Much easier, since you can run individual files, and no need to create a project to quickly test something.
+- Turn on type hints -> because apis return a mixture of owned/&/&mut and it's hard to remember them all. Especially in iterator pipelines.
+- Custom snippets -> for hard to type repeated syntax such as println!("{:?}", x)
+- Use your IDE actions -> match - cmd+. "add missing arms" - write out match arms
+                        -> impl trait - cmd+. "implement missing members" - write out trait methods
 
-- ⚠️ Tips for learning Russt:
-    - Syllabus based learning - 0_language_syllabus.txt. Because The Book, and most materials are patchy. Learn in the order that makes most sense to you.
-    - Use AI chat as your tutor. You can ask it anything that's otherwise obscure in the learning material
+⚠️ Tips for learning Russt:
+- Syllabus based learning - 0_language_syllabus.txt. Because The Book, and most materials are patchy. Learn in the order that makes most sense to you.
+- Use AI chat as your tutor. You can ask it anything that's otherwise obscure in the learning material
 
 # _____________________________________________________________________________________________
 # GETTING STARTED

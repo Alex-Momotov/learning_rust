@@ -114,7 +114,7 @@ for you to use as THE way to borrow. &str doesn't sit on top of &String — it t
 
 #![allow(unused)]
 pub fn main() {
-	// ------------------------------
+    // _____________________________________________________________________________________________
 	// String vs &str
 	let s1 = String::from("hi"); 	// String type. heap buffer is ALLOCATED when this runs, and FREED when `owned` goes out of scope.
 									// → needs an owner, because someone must decide when to free it.
@@ -153,28 +153,14 @@ pub fn main() {
 	let owned: String  	= String::from("foo");
 	let borrowed: &str	= "foo";
 
-	// String -> &str 		(three ways)
+	// String -> &str 	
 	let borrowed1: &str  = &owned;			// &str annotation
-	let borrowed2        = owned.as_str();	// .as_str()
-	let borrowed3        = &owned[..];		// slice
+	let borrowed2  = owned.as_str();	// .as_str()
 
 	// &str -> String
 	let owned1 = String::from(borrowed);	// String::from()
 	let owned2 = borrowed.to_string();		// to_string()
-	let owned3 = borrowed.to_owned();		// to_owned()
 
-	// ------------------------------
-	// Create 
-	let s = String::from("hello");
-	let s = "hello".to_string();        // same thing
-	let s = String::new();              // empty
-	let lit: &str = "hello";            // literal - a &str, not a String
-
-	// ------------------------------
-	// Grow / mutate (needs mut) 
-	let mut s = String::from("hello");
-	s.push_str(" world");               // append &str
-	s.push('!');                        // append single char
 
 	// ------------------------------
 	// Concatenate 
@@ -187,11 +173,6 @@ pub fn main() {
 	let s = format!("{:.2}", 3.14159);  // -> "3.14" (format specs live after :)
 	let s = format!("{:?}", vec![1, 2]);// {:?} = debug print for non-string things
 
-	// ------------------------------
-	// Length / emptiness 
-	let n = "héllo".len();              // -> 6 BYTES (é is 2), not 5!
-	let n = "héllo".chars().count();    // -> 5 characters
-	let e = "".is_empty();
 
 	// ------------------------------
 	// Index / slice 
@@ -201,10 +182,7 @@ pub fn main() {
 	let sub = &s[0..5];                 // byte-range slice -> "hello" (&str view, no copy)
 	// &"héllo"[0..2]                   // PANICS at runtime - cuts é in half. slice on char boundaries only.
 
-	// ------------------------------
-	// Case 
-	let s = "Hello World!".to_lowercase();   // returns new String, original untouched
-	let s = "Hello World!".to_uppercase();
+
 
 	// ------------------------------
 	// Search 
