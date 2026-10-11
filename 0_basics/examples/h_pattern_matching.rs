@@ -80,8 +80,11 @@ fn main() {
 
    	// _____________________________________________________________________________________________
 	// LET CHAINING
-	// The LET IF and WHILE LET support LET CHAINING. Let chains are just several patterns or boolean
+	// The IF LET and WHILE LET support LET CHAINING. Let chains are just several patterns or boolean
 	// conditions joined by &&. All the patterns and conditions must be true for the whole pattern to match.
+
+	// ⭐ When the first pattern in the chain matches, it's destructured contents become available for the other patterns in the chain.
+	// if let pattern_1, pattern_2, pattern_3 {...}     The second pattern can use variables destructured from the first.
 	
     if let Some(x) = opt && x > 3 && let Ok(y) = Result::<i32, &str>::Err("hi") {
         println!("hi");
@@ -184,14 +187,14 @@ fn main() {
 		lowercase_var  => {},  // all lowercase variable    -> matches everything can use as placeholder
 		_                   => {},  // _                         -> matches everything, can't use as placeholder
 	}
-
+	
 	// Destructuring - structs
     struct Point { x: i32, y: i32, }
     let point = Point { x: 1, y: 2 };
     match point {
         Point { x, y}   => {},    // bind all
         Point { x, .. }      => {},    // bind some '..' means ignore the rest
-        Point { x: 0, y: 0 }      => {},    // literal inside a struct pattern
+        Point { x: 0 , y: 0 }      => {},    // literal inside a struct pattern
         Point { x: 0, y }    => {},    // y is bound
     };
 
@@ -216,7 +219,6 @@ fn main() {
     match t {
         (x, y, z)  => {},  // bind x, y z
         (x, .., z)      => {},  // bind x, z only
-        _                         => {},
     }
 
     // Destructuring - nested

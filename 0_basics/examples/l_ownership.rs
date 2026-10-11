@@ -122,6 +122,50 @@ Questions:
 - What does dying mean? Not going out of scope but last usage I assume?
 - In the permissions model what does O (Own) mean? practically speaking what does it allow? Dying and moving? What does that mean? I suppose moving means being assigned to a different var like (let b = a)? But then what does dying mean?
 
+_____________________________________________________________________________________________
+NEW NOTES - STACK VS HEAP
+
+Stack
+The stack stores values in order that it gets them, and removes the values in the opposite order (last in, first out).
+Adding data is called "pushing onto the stack", and removing data is called "popping off the stack".
+The data stored on the stack must have a known, fixed size. Data with an unknown size at compile time or a size that might change must be stored on the heap instead.
+When your code calls a function, the values passed into the function (including, potentially, pointers to data on the heap) and the function’s local variables get 
+pushed onto the stack. When the function is over, those values get popped off the stack.
+
+Heap
+When you put data on the heap, you request a certain amount of space. The memory allocator finds an empty spot in the heap that is big enough, 
+marks it as being in use and returns a pointer (memory address) of the location. This is called "allocating on the heap" or just "allocating" 
+(pushing values onto the stack is not considered allocating). Because the pointer to the heap is a known, fixed size, you can store the pointer on the stack,
+but when you want the actual data you must follow the pointer. 
+
+Stack vs Heap
+Creating data:
+    - Stack - Pushing to the stack is faster than allocating on the heap, because the allocator never has to search for a place to store new data; that location is always at the top of the stack. 
+    - Heap - In contrast, allocating space on the heap requires more work because the allocator must first find a big enough space to hold the data.
+Accessing data:
+    - A processor can usually do its job better if it works on data that's close to other data (as it's on the stack), rather than further away (as it can be on the heap).
+    - Accessing data in the heap is generally slower than accessing data on the stack because you have to follow a pointer to get there.
+
+_____________________________________________________________________________________________
+BASIC OWNERSHIP RULES
+- Each value in Rust has an owner.
+- There can only be one owner at a time.
+- When the owner goes out of scope, the value will be dropped.
+
+SCOPE
+- Scope - is the range within a program for which an item is valid
+- The variable is valid from the point at which it’s declared until the end of the current scope.
+
+{                      // s is not valid here, since it's not yet declared
+    let s = "hello";   // s is valid from this point forward
+
+    // do stuff with s
+}                      // this scope is now over, and s is no longer valid
+
+
+
+_____________________________________________________________________________________________
+
 */ 
 
 #![allow(unused)]

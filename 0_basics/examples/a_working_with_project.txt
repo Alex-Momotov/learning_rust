@@ -1,4 +1,31 @@
-# THESIS - Why learn and use Rust for all your software in 2026
+# _____________________________________________________________________________________________
+# THESIS
+
+# Why learn Rust as a Data Engineer
+1. Writing your own components, microservices and cli tools (when there isn't an out of the box one available for exactly what you need), for both:
+    - data pipeline components
+    - AI pipeline components (both training & inference pipelines)
+    - backend generally
+2. General backend Rust jobs
+    Everything is being rewritten into Rust with help of AI, a lot more jobs opening.
+3. Backend programming language of AI era
+    Because with the help of AI you can write code that is: 1. faster 2. more correct; less bugs; less incidents 3. cheaper - cpu, memory, cloud bill
+    And with the help of AI you can write Rust quickly, with free guardrails
+4. Python & Rust as a powerful Data Engineer combination. You cover both sides
+    Python - glue code, prototypes, scripts
+    Rust - heavy lifting, performant components, microservices, Py03, cli tools
+
+* More on Rust in AI pipelines
+- Training - training requires something to feed GPUs data fast enough (even through frameworks like PyTorch). That's where Rust comes in via PyO3.
+- Training - emerging training frameworks like Burn, and Candle allow the entire training pipeline to be in Rust.
+- Inference - inference is supposed to be fast, but requires CPU intensive pre-processing. That's where rust comes in.
+
+
+# Why learn to write by hand (instead of AI)? 
+- To know what's possible, be able to choose low level tradeoffs, be able to review AI code
+- It makes you a better software developer in general because it makes you think about memory ownership, heap, and stack, and how to write safer code.
+
+# Rust strengths
 - Performance (on par with C), tiny memory & CPU footprint, ultra fast startup time (perfect for lambda or CLI)
 - Tiny binaries (a few MB), meaning also tiny Docker image too, fast download 
 - Safety - eliminating a whole category of bugs and incidents. Important where safety is critical, in production, or when distributing to users, fewer incidents. 
@@ -9,7 +36,7 @@
   Not having runtime inside the binary is what allows the binary to be tiny. Also no GC pauses and high performance. 
 - Fearless concurrency - the borrow checker proves the absense of data races, so you can parallelise agressively in places where you wouldn't data in C++ or other languages.
 
-Reasons to choose Rust (correctness and cost are even more important than performance, and hence makes a valid option for e.g. a microservice)
+# Reasons to choose Rust besides performance (correctness and cost are even more important than performance, and hence makes a valid option for e.g. a microservice)
 - Performance - cpu and memory
 - Correctness - easier to express correct code, two aspects:
     - Business logic - due to static typing, enums and pattern matching
@@ -18,8 +45,7 @@ Reasons to choose Rust (correctness and cost are even more important than perfor
     - Lower cloud bill - can serve a large traffic with a tiny instance due to low cpu and memory usage
     - Easier to productionise - tiny native binaries, no runtime to install and manage versions of, no GC to optimise
 
-
-Why I love rust
+# Why I love rust
 - Data (struct) is separate from methods that can act on it (impl blocks) - and this is forced.
   This is my Facade-catalogue pattern enforced.
 - Functions don't have default or named parameters - all parameters are required.
@@ -28,24 +54,15 @@ Why I love rust
 - No inheritance - you use composition instead
 - Errors as values - easier to reason about your program. Because at every step you have to handle what COULD happen.
   
-Why learn to write by hand? 
-- To know what's possible and be a better collaborator with AI Agents
-- It makes you a better software developer in general because it makes you think about memory ownership, heap, and stack, and how to write safer code.
 
-Usages
-microservices (replaces Java because more safe and uses 5-10x less memory, no GC pauses, cold-start time, lower cloud bill). Arguments: faster to 
-develop in (because less incidents + bugs) and cheaper to run; db / query engines, stream processing; batch jobs, lambda functions; 
-Python native extensions; Cli tools
-
-
-⚠️ Tips to make working with Rust easier:
+# ⚠️ Tips to make working with Rust easier:
 - /examples -> for learning and prototyping. Much easier, since you can run individual files, and no need to create a project to quickly test something.
 - Turn on type hints -> because apis return a mixture of owned/&/&mut and it's hard to remember them all. Especially in iterator pipelines.
 - Custom snippets -> for hard to type repeated syntax such as println!("{:?}", x)
 - Use your IDE actions -> match - cmd+. "add missing arms" - write out match arms
                         -> impl trait - cmd+. "implement missing members" - write out trait methods
 
-⚠️ Tips for learning Russt:
+# ⚠️ Tips for learning Russt:
 - Syllabus based learning - 0_language_syllabus.txt. Because The Book, and most materials are patchy. Learn in the order that makes most sense to you.
 - Use AI chat as your tutor. You can ask it anything that's otherwise obscure in the learning material
 

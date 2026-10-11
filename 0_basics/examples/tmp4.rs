@@ -1,5 +1,22 @@
-use std::ops::AddAssign;
+use std::{collections::{HashMap, HashSet}, hash::Hash, ops::AddAssign};
 
+
+pub fn rotate(nums: &mut Vec<i32>, k: i32) {
+    fn new_idx(idx: i32, len: i32) -> i32 {
+        if (idx < len) {
+            return idx;
+        } else {
+            return ((idx + 1) % len) - 1
+        }
+    }
+
+    for i in 0..nums.len() {
+        let new_idx = new_idx(i as i32 + k, nums.len() as i32);
+        let tmp = nums[new_idx as usize];
+        nums[new_idx as usize] = nums[i];
+        nums[i] = tmp;
+    }
+}
 
 
 fn main() {
@@ -153,6 +170,22 @@ fn main() {
         v[0] += 1;  // can mutate elements
         v.pop();    // can mutate collection itself
     }
+
+    // _____________________________________________________________________________________________
+    // _____________________________________________________________________________________________
+    // _____________________________________________________________________________________________
+    // Level 1: Mutating things directly
+    // Level 2: Watch out for when variables become hiddenly frozen (in loops, and methods)
+    // Level 3: Mutating through reference
+    // Level 4: Moving/copying a reference and reborrowing
+
+    let mut a = "d".to_string();
+    let m1 = &mut a;
+    let m2 = &mut m1;
+    let m3 = &mut m2;
+
+    // **m2 += 1;
+    
     
 }
 
