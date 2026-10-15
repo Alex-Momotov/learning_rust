@@ -1,23 +1,19 @@
 use std::{collections::{HashMap, HashSet}, hash::Hash, ops::AddAssign};
 
 
-pub fn rotate(nums: &mut Vec<i32>, k: i32) {
-    fn new_idx(idx: i32, len: i32) -> i32 {
-        if (idx < len) {
-            return idx;
-        } else {
-            return ((idx + 1) % len) - 1
+pub fn h_index(mut citations: Vec<i32>) -> i32 {
+    citations.sort();
+    citations.reverse();
+
+    let mut h = 0;
+    for i in 0..citations.len() {
+        if citations[i] < (i as i32 + 1) {
+            break;
         }
+        h = i + 1;
     }
-
-    for i in 0..nums.len() {
-        let new_idx = new_idx(i as i32 + k, nums.len() as i32);
-        let tmp = nums[new_idx as usize];
-        nums[new_idx as usize] = nums[i];
-        nums[i] = tmp;
-    }
+    h as i32
 }
-
 
 fn main() {
     let mut s = "hi".to_string();
@@ -124,16 +120,6 @@ fn main() {
     *m = 10;            // 2. mutate through assigning              (deref needed)
     *m += 1;            // 3. mutate through arithmetic operation   (deref needed)
     
-
-    // _____________________________________________________________________________________________
-    // Reborrow vs move
-    // Reborrow - means borrow a borrowed value, after which it returns to the first borrow, and eventually to the ogiginal
-
-    let mut a = 10;             // original
-    let mut m = &mut a;    // mut reference
-    
-    let j = &mut m;    // reborrow (m is still alive after j borrow ends)
-    let k = m;              // move (m is dead/moved to k)
 
     // _____________________________________________________________________________________________
     // Loops - mutating while iterating

@@ -1,0 +1,131 @@
+# _____________________________________________________________________________________________
+NEW NOTES - STACK VS HEAP
+
+Stack
+The stack stores values in order that it gets them, and removes the values in the opposite order (last in, first out).
+Adding data is called "pushing onto the stack", and removing data is called "popping off the stack".
+The data stored on the stack must have a known, fixed size. Data with an unknown size at compile time or a size that might change must be stored on the heap instead.
+When your code calls a function, the values passed into the function (including, potentially, pointers to data on the heap) and the function’s local variables get 
+pushed onto the stack. When the function is over, those values get popped off the stack.
+
+Heap
+When you put data on the heap, you request a certain amount of space. The memory allocator finds an empty spot in the heap that is big enough, 
+marks it as being in use and returns a pointer (memory address) of the location. This is called "allocating on the heap" or just "allocating" 
+(pushing values onto the stack is not considered allocating). Because the pointer to the heap is a known, fixed size, you can store the pointer on the stack,
+but when you want the actual data you must follow the pointer. 
+
+Stack vs Heap
+Creating data:
+    - Stack - Pushing to the stack is faster than allocating on the heap, because the allocator never has to search for a place to store new data; that location is always at the top of the stack. 
+    - Heap - In contrast, allocating space on the heap requires more work because the allocator must first find a big enough space to hold the data.
+Accessing data:
+    - A processor can usually do its job better if it works on data that's close to other data (as it's on the stack), rather than further away (as it can be on the heap).
+    - Accessing data in the heap is generally slower than accessing data on the stack because you have to follow a pointer to get there.
+
+# _____________________________________________________________________________________________
+In order to have variables with dynamic size (unknown starting size, or size can grow) we must allocate an amount of memory on the heap, unknown at compile time.
+1. The memory must be requested from the memory allocator at runtime.
+2. We need a way of returning this memory to the allocator when we’re done with our String.
+
+The first part is universal in most programming languages. The second is where languages divide into two groups:
+1. Memory is manually freed (C, C++). This is historically difficult because:
+    - do it too early - use after free error
+    - forget to do it - memory leaks
+    - do it twice - double free error
+   The challenge is that we must pair exactly one allocate with exactly one free.
+2. Garbage collector (Java, Python, JS), memory safe but slow
+
+Rust takes a 3rd approach: The memory is automatically returned once the variable that owns it goes out of scope. 
+When a variable goes out of scope, Rust calls a special function for us. This function is called drop, and it’s 
+where the author of String can put the code to return the memory. Rust calls drop automatically at the closing curly bracket.
+
+Note: In C++, this pattern of deallocating resources at the end of an item’s lifetime is sometimes called Resource Acquisition Is Initialization (RAII).
+
+# _____________________________________________________________________________________________
+THE RATIONALLE BEHIND OWNERSHIP and BORROWING RULES
+
+How variables in Rust are represented in memory:
+Copy types - Fully known, fixed size. Can fully be on the stack. But can also be explicitly allocated on the heap if needed
+Move types - Size can be dynamic. Can have some of thier contents as "dynamic" things like allocated memory ranges.
+             The copy contents are copied, the dynamic contents are not. Pointer which is copy is copied, dynamic memory range on the heap is the same.
+
+* Copying the stack variables is cheap. Allocating on the heap is expensive. 
+
+The ownership and borrowing rules follow naturally, if we commit to the RAII model (a variable is freed at the end of it's scope).
+- Why only one owner of a value is allowed:
+  If two variables both referred to the same value, and that value contained a pointer to a memory block, then when both 
+  variables go out of scope, both will try to free memory -> double free error.
+  This is why '=' does 'move' for the non-primitive types, ensuring only one owner exists at all times. 
+- References - whenever we pass a value to a function it is moved like any other value. We COULD make every function return the parameters together with the results,
+  to return the ownership of the params back to the caller, but that is cumbersome. E.g.:
+    fn calculate_length(s: String) -> (String, usize) {
+        let length = s.len(); // len() returns the length of a String
+        (s, length)
+    }
+  References are real pointers (memory addresses). A reference is like a pointer in that it’s an address we can follow to access the data stored at that address; that data is owned by some other variable. Unlike a pointer, a reference is guaranteed to point to a valid value of a particular type for the life of that reference.
+  The solution is references: Because the reference does not own it, the value it points to will not be dropped when the reference stops being used.
+- References can't outlive their data - to prevent use after free errors.
+
+  
+In addition, there’s a design choice that’s implied by this: Rust will never automatically create “deep” copies of your data. Therefore, any automatic copying can be assumed to be inexpensive in terms of runtime performance.
+
+
+If we do want to deeply copy the heap data of the String, not just the stack data, we can use a common method called clone. 
+
+If a type implements the Copy trait, variables that use it do not move, but rather are trivially copied, making them still valid after assignment to another variable.
+Rust won’t let us annotate a type with Copy if the type, or any of its parts, has implemented the Drop trait. 
+If the type needs something special to happen when the value goes out of scope and we add the Copy annotation to that type, we’ll get a compile-time error. 
+
+Any group of simple scalar values can implement Copy, and nothing that requires allocation or is some form of resource can implement Copy
+
+
+While this works, taking ownership and then returning ownership with every function is a bit tedious. What if we want to let a function use a value but not take ownership? It’s quite annoying that anything we pass in also needs to be passed back if we want to use it again, in addition to any data resulting from the body of the function that we might want to return as well.
+fn calculate_length(s: String) -> (String, usize) {
+    let length = s.len(); // len() returns the length of a String
+    (s, length)
+}
+But this is too much ceremony and a lot of work for a concept that should be common. Luckily for us, Rust has a feature for using a value without transferring ownership: references.
+
+
+Only one mutable reference at a time. Benefit - no data race conditions. A data race is similar to a race condition and happens when these three behaviors occur:
+- Two or more pointers access the same data at the same time.
+- At least one of the pointers is being used to write to the data.
+- There’s no mechanism being used to synchronize access to the data.
+Rust prevents this problem by refusing to compile code with data races!
+
+# _____________________________________________________________________________________________
+SLICES
+
+Slices let you reference a contiguous sequence of elements in a collection. A slice is a kind of reference, so it does not have ownership.
+Benefits of slices: 
+    1. Cheap way of pointing to a collection / string without allocating anything new
+    2. Way to tie together the underlying collection and the reference to it's region, such that you can't modify or drop the collection when a reference to it still exists.
+       This ensures that collection / string references (slices) are always valid - no use after free.
+
+       String
++----------+-------+          +-------+-------+
+| name     | value |          | index | value |
++----------+-------+          +-------+-------+
+| ptr      |   o---+--------->|   0   |   h   |
+| len      |  11   |          |   1   |   e   |
+| capacity |  11   |          |   2   |   l   |
++----------+-------+          |   3   |   l   |
+                              |   4   |   o   |
+         &str                 |   5   |       |
++----------+-------+    +---->|   6   |   w   |
+| name     | value |    |     |   7   |   o   |
++----------+-------+    |     |   8   |   r   |
+| ptr      |   o---+----+     |   9   |   l   |
+| len      |   5   |          |  10   |   d   |
++----------+-------+          +-------+-------+
+
+String - is a fat pointer into memory containing ptr (memory address), length, and capacity
+&str - is a fat pointer into memory containing just ptr (memory address), and length. 
+
+Why the taking &str as param is better than taking &String?
+- &str is a pointer directly into the bytes, but &String is a pointer to String, which is itself a pointer to bytes, so two hops.
+  Avoid second hop by taking &str directly. 
+- Taking &String as param means fn will accept &String only and not &str. 
+  Taking &str makes the fn accept both a slice (&str) and a &String, because &String coerces to &str. So the fn is more versatile. I.e. both string literals and owned &Strings are accepted.
+
+

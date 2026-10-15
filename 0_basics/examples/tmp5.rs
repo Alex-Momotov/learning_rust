@@ -9,11 +9,11 @@ fn main() {
     // _____________________________________________________________________________________________
     // COPY / MOVE / BORROW
 
-    // Copy - Some types are copy (primitives)
-    // Move - All other types are move - (e.g. String, Vec, custom struct)
+    // COPY - Some types are copy (primitives)
+    // MOVE - All other types are move - (e.g. String, Vec, custom struct)
     //        Functions kill - because move variables move inside.
 
-    // Borrowing - solution to variables being killed - &mut (exclusive write access) XOR & (shared read access)
+    // BORROW - solution to variables being killed - &mut (exclusive write access) XOR & (shared read access)
 
     // & itself is a copy type
     let mut s = "hi".to_string();
@@ -26,52 +26,79 @@ fn main() {
     let m2 = m;         // m is moved (dead)
 
     
-    // REBORROWING
+    // REBORROW
+    // Syntax:      &mut *foo (reborrow as &mut reference)        &*foo (reborrow as & reference)
     // &mut borrowing is like passing an exclusive access to the borrower, but what if the borrower needs to pass that exclusive access to someone else before continueing its operation?
     // That's why reborrowing exists - the original borrower freezes (temporarily relinquishes it's access), and passes the exclusive access to another borrower. Once the other borrower
     // is finished, the original borrower unfreezes and continues. Since &mut reference is a move type, the reborrow syntax is to create a fresh &mut reference from the original value - &mut *foo.
+    // See examples below. The only reborrowing you CANT do is reborrow & as &mut - original borrower cant give out more permissions than it itself has.
 
+    // Reborrow &mut as &mut
     let mut s = "hi".to_string();
     let m1 = &mut s;
-    
-    let m2 = &mut *m1;  // Reborrow. m2 now has exclusive access, m1 is frozen.
-    m2.push('s');                    // After m2 is done with its writing, m1 unfreezes.
+    let m2 = &mut *m1;  // Reborrow. m2 now has exclusive access, m1 is frozen.     
+    m2.push('s');                    // After m2 is done with its writing, m1 unfreezes.            Think of it as a stack, s → m1 → m2, where only the top is usable.
+    m1.push('k');                    // m1 is now unfrozen now holds exclusive access
 
-    m1.push('k');       // m1 is now unfrozen now holds exclusive access
-
-    // Can you reborrow & (read reference)? 
-    // Yes, but read reference is copy type, so there's no practical difference between reborrowing and copying it.
+    // Reborrow & as &      You can reborrow read references, but read reference is copy type, so there's no practical difference between reborrowing and copying it.
     let s = "hi".to_string();
     let r1 = &s;
     let r2 = r1;    // copy 
     let r3 = &*r1;  // reborrow
 
-    
-    // &mut *m1 doesn't create a second independent &mut to s. It creates one that's derived from m1.
-    // While m2 is in use, m1 is frozen: it can't read or write. A more precise version of "only one mutable reference" is
-    // "only one usable mutable path at a time". Think of it as a stack, s → m1 → m2, where only the top is usable. When m2
-    // is last used, it's popped off and m1 works again.
+    // Reborrow &mut as &   You can reborrow &mut reference as & reference
+    let mut s = "hi".to_string();
+    let m1 = &mut s;
+    let m2 = &*m1;          // reborrow &mut as &
 
-    // _____________________________________________________________________________________________
-    // IMPLICIT REBORROWING
-    // Implicit reborrow happens whenever &mut foo is expected: 1. annotated variables (let a: &mut ...) 2. function params (fn func(a: &mut ...)) 3. method calls (a.foo() where foo takes &mut self, and a is a reference)
-    // The compiler automatically inserts the reborrow for us (&mut *foo), so that if we pass a reference (which is move), it survives without being moved.
+    
+    // AUTO REBORROW
+    // Auto reborrow means the compiler automatically inserts the reborrow (&mut *foo or &*foo) in certain places, so we don't have to do it by hand.
+    // It happens whenever &mut is expected (annotated).
+    // Note: & reference gets auto reborrowed as well. But because & is copy type there is no practical difference between it being reborrowed or copied. So no implication of this.
 
-    // Does implicit reborrow happen to & (read reference)? Yes, but because & is copy type there is no practical difference between it being reborrowed or copied. 
+    // 1. annotated variables
+    let mut s = "hi".to_string();
+    let m1 = &mut s;
+    let m2 = &mut *m1;  // explicit reborrowing
+    let m3: &mut String = m1;        // auto reborrowing (because of annotation) - compiler inserts '= &mut *m1' automatically
+    m1;                              // m1 is still alive (not moved)
     
-    // Move/copy - v, &v, &mut v - Normal function vs loop
+    // 2. function params
+    fn foo(s: &mut String) {}
+    let mut s = "hi".to_string();
+    let m1 = &mut s;
+    foo(m1);                        // auto reborrowing - compiler inserts 'foo(&mut *m1)' automatically
+    m1;                             // m1 is still alive (not moved)
     
-	// _____________________________________________________________________________________________
-	// Reference of reference (and why it exists)
+    // 3. method params
+    struct Meow; impl Meow { fn foo(&mut self) {} };
+    let mut a = Meow;
+    let m = &mut a;
+    m.foo();                       // auto reborrowing - compiler inserts Meow::foo(&mut *m);
+    m;                             // m is still alive (not moved)
+    
+    // Where auto reborrow does NOT happen - wherever there is no explicit &mut annotation
+
+    // 1. generic function / method params
+    let mut s = "hi".to_string();
+    let m1 = &mut s;
+    fn bar<T>(a: T) {}          // generic function has no explicit &mut param annotation
+    bar(m1);                    // m1 gets killed (moved)
+
+    // 2. for loop - really case 1, because for loop desugars to a generic function consuming self, where self is the generic &mut param 
+    let mut v: Vec<i32> = Vec::new();
+    let m = &mut v;
+    for i in m {}           // no auto reborrowing, m is dead 
+    
+	
+	// REFERENCE OF REFERENCE
+    // Why is reference of a reference possible if reborrowing is usually what you want?
+    // Reference of a reference isn't a separate feature. It's the ordinary & / &mut operator applied to a variable that itself happens to be a reference. 
+    // References are values, and you can borrow any value. Rust doesn't treat it specially.
     let mut s = "hi".to_string();
     let mut m1 = &mut s;
     let m2 = &mut m1;
-
-    // 3. Why does sub-borrowing exist if reborrowing is usually what you want?
-
-    // Sub-borrowing isn't a separate feature. It's the ordinary & / &mut operator applied to a variable that happens to
-    // hold a reference. References are values, and you can borrow any value. Rust doesn't treat it specially.
-
 
     // When you actually want it, the difference between the two is:
     // - Reborrow, &mut *m: gives access to the target. You can change the String.
@@ -81,6 +108,24 @@ fn main() {
     let mut rest: &str = "hello big world";   // &str means the its a read-only pointer to the string, meaning we can't modify the string itself. BUT this read only pointer itself is mutable - it can be made to point somewhere else.
     eat_word(&mut rest);   // rest is now " big world"
 
+
+	// _____________________________________________________________________________________________
+	// Syntax summary
+	let mut s = "hi".to_string();
+
+	let r1 = &s;        // read reference
+	let r2 = r1;        // read reference (copied)
+	let r3 = &*r1;      // read reference (reborrowed), no difference to copied
+	let r4: &String = r1;        // read reference (implicitly reborrowed), no difference to copied
+	let r5 = &r1;      // && reference of a reference
+	
+	let m1 = &mut s;    // &mut
+	let m2 = m1;        // &mut moved, m1 dead
+	let m3 = &mut *m2;  // &mut (reborrowed) as &mut
+	let m4: &mut String = m2;        // &mut (reborrowed implicitly) as &mut
+	let m5 = &*m2;          // &mut (reborrowed) as &
+	let m6: &String = m2;            // &mut (reborrowed implicitly) as &
+	let m7 = &m2;      // &&mut referene of a reference    
 
 	// _____________________________________________________________________________________________
 	// LOOPS and CONSUMING
