@@ -1,0 +1,93 @@
+  1. POINTERS — keep it here. dyn is unintelligible without "all pointers are the same size." Link out to
+     q_memory_model_map.txt rather than duplicating.
+  2. Framing — your 4-places-polymorphism-occurs list is good, keep as-is. Add the organising question: at this one
+     spot, how many concrete types can there be, and when is it decided?
+  3. MONOMORPHISATION (moved) — compiler stamps one copy per concrete type used ⇒ zero runtime cost, direct inlinable
+     calls ⇒ binary size + compile time grow per instantiation ⇒ one copy serves exactly one type, which is the seed
+     of everything in §5.
+
+
+
+  4. STATIC DISPATCH (fill the stub):
+     - the three spellings, and that they're the same thing: fn f(a: impl Trait) (anonymous), fn f<T: Trait>(a: T)
+       (named — needed when T appears twice or in return position), where form
+     - + for multiple traits
+     - -> impl Trait — returning
+     - the asymmetry worth its own line: in argument position the caller picks the concrete type; in return position
+       the callee picks and the caller can't name it. Same syntax, opposite direction of choice. Your notes don't
+       cover this yet and it's a common stumble.
+     - let x: impl Trait = ... is not allowed, and why — you asked me this once already, which makes it worth writing
+       down
+  5. THE WALL (moved + renamed) — can't mix implementers in one collection; can't return a different implementer per
+     branch. Why: different types, different sizes; one monomorphised copy serves one type. This section exists to
+     motivate §6.
+
+--------------------------------------     
+
+The 3 unsized primitives
+str, [T], dyn Trait are the three unsized (!Sized) primitive types. All other unsized types derive from those. A struct whos last field is unsized itself becomes unsized.
+We can't directly instantiate an unsized type, they require pointers. Think of them as "format" of a data region the pointer in front is pointing to.
+
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+
+DYNAMIC DISPATCH
+    ⭐ Wanting a value whose TYPE is decided at runtime is the same problem as wanting one whose
+      SIZE is decided at runtime - because different implementing types have different sizes
+      (Cat 8 bytes, Dog 0 bytes). So it gets the same solution: an unsized pointee, reached
+      through a fat pointer.
+    ⭐ PTR dyn Trait is a fat pointer (ptr_data, ptr_vtable). Same SHAPE as a slice, different
+      METADATA - because a different thing is unknown:
+          PTR[T], PTRstr    metadata = LENGTH          -> what's unknown is HOW MANY
+          PTR dyn Trait     metadata = VTABLE ADDRESS  -> what's unknown is WHICH TYPE
+      The vtable is ONE static table per (concrete type, trait) pair, baked into the binary at
+      compile time - not one per value. It holds the concrete type's size, its drop code, and a
+      pointer to each of the trait's methods. That's how "which type?" gets answered at runtime.
+      (size_of_val on a dyn reads the size straight out of the vtable: Cat -> 8, Dog -> 0.)
+    ⭐ Just like slices, PTR dyn Trait can point at storage of ANY origin:
+          - heap   - Box<dyn Trait>, Rc<dyn Trait>
+          - stack  - &dyn Trait to a local
+          - static - &dyn Trait to a static item
+      It is Box that allocates, NOT dyn.
+    ⭐ And just like slices, it cannot change what it points at: dyn Trait names ONE concrete
+      type, fixed the moment the pointer is created. A different type means a different pointer.
+
+
+    dyn Trait   Unsized pointee. Some type that implements Trait, unknowable at compile time, can only live behind a pointer. What's unknown is WHICH TYPE, and therefore what size.
+    &dyn Trait  Pointer.         Fat BORROW pointer (ptr_data, ptr_vtable) of data owned by some other value
+
+
+
+Summary:
+- We must know the size of every "place" at compile time - variable, function param, function return, collection item, struct field, enum variant.
+- If we want something of dynamic size (starting size unknown or size is growable), then - it has to be represented with a dynamically allocated region of memory.
+- The ONLY way to create and manage such a dynamically allocated region of memory is using UNSAFE code that does raw pointer arithmetic, and asks allocator to allocate or grow regions of memory.
+- Fat pointer types, such as Vec and String do this unsafe code pointer arithmetic for us behind the scenes, and provide a convenient way to interact with those dynamically allocated regions of memory 
+    (create it, read it, write to it) without having to touch unsafe code.
+- Slice types PTR[T] and PTRstr point to a region of memory THEY DIDN'T THEMSELVES CREATE, and which can be in any part of program memory: dynamically allocated (using unsafe), on the stack (e.g. normal array) or in static (e.g. string literals)
+
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+
+/* 
+oop.rs -> is about syntax of oop constructs.
+oop2.rs (this file) -> about patterns of writing oop code
+
+OOP principles:
+- Single responsibility
+- Encapsulation
+- Abstraction
+- Minimal Coupling
+
+
+[] You typical class (struct + impl) with invariants as private fields, and the public / private mehtods - how to design this?
+   Book chapters: 5.1, 6.1, 17.1, 17.2, 17.3
+[] Composition, not inheritance
+[] The getter story
+[] Polymorphism - when to use static vs dynamic dispatch
+   https://www.youtube.com/watch?v=m_phdVlkr6U
+[] Data modelling
+
+*/
