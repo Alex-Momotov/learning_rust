@@ -129,3 +129,22 @@ Why the taking &str as param is better than taking &String?
   Taking &str makes the fn accept both a slice (&str) and a &String, because &String coerces to &str. So the fn is more versatile. I.e. both string literals and owned &Strings are accepted.
 
 
+        Vec<i32>
++----------+-------+          +-------+-------+
+| name     | value |          | index | value |
++----------+-------+          +-------+-------+
+| ptr      |   o---+--------->|   0   |  10   |
+| len      |  10   |          |   1   |  20   |
+| capacity |  10   |          |   2   |  30   |
++----------+-------+          |   3   |  40   |
+                              |   4   |  50   |
+        &[i32]          +---->|   5   |  60   |
++----------+-------+    |     |   6   |  70   |
+| name     | value |    |     |   7   |  80   |
++----------+-------+    |     |   8   |  90   |
+| ptr      |   o---+----+     |   9   |  100  |
+| len      |   3   |          +-------+-------+
++----------+-------+
+
+
+

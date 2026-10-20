@@ -25,6 +25,17 @@
 - To know what's possible, be able to choose low level tradeoffs, be able to review AI code
 - It makes you a better software developer in general because it makes you think about memory ownership, heap, and stack, and how to write safer code.
 
+# On speed of learning (if you ever feel like the industry is moving faster than you can learn)
+1. You're comparing your depth to the industry's breadth. "The industry" is thousands of people each shipping one narrow thing, 
+   and the news feed adds them all up. Nobody keeps up with all of it, including senior engineers. They keep up with their slice and ignore the rest. 
+   You'll never win the comparison you're making, because it isn't a fair one.
+2. Most of what moves fast is surface. Frameworks, AI tooling and the hype of the month change every few months. What you're learning (ownership, 
+   memory layout, the stack vs the heap, what a slice actually is) changes over decades. The diagrams we just drew would have looked the same 20 years 
+   ago in C. You chose the slow-moving layer, so it feels slower to learn but it lasts much longer.
+3. Compare against yourself 3 months ago. Three months ago you didn't know Rust. Now you're writing a sync-core/async-shell architecture in it and
+   asking questions about grammar-level details. That's fast by any honest standard. The feeling just doesn't update, because it's tracking the gap 
+   to the frontier, and the frontier keeps moving.
+
 # Rust strengths
 - Performance (on par with C), tiny memory & CPU footprint, ultra fast startup time (perfect for lambda or CLI)
 - Tiny binaries (a few MB), meaning also tiny Docker image too, fast download 

@@ -1,7 +1,7 @@
 #![allow(unused)]
 
-use std::collections::HashMap;
-
+use std::{collections::{HashMap, HashSet}, default, fmt::Display, fs::File, hash::Hash, path::Path};
+use std::alloc::{alloc, dealloc, Layout};
 
 fn main() {
     /* _____________________________________________________________________________________________
@@ -78,40 +78,342 @@ fn main() {
         
 
     3. Attributes from libraries. 
+       Crates can define their own attributes such as Clap, or Tokio.
 
-    
-    */
+        #[derive(Parser, Debug)]    <- Clap cli
+        struct FlatCli { ... }
 
+    * Bonus: Doc comments are attributes too. 
+      '/// Adds two number'     -> desugars to ->   #[doc = " Adds two numbers"]
 
-
-
+    _____________________________________________________________________________________________ 
+    When to use attributes
+    - get a standard behaviour for free: #[derive(...)], which is by far the most common
+    - control warnings: #[allow(...)], #[deny(...)]
+    - include or exclude code: #[cfg(...)], #[test]
+    - plug into a library: #[tokio::main], #[derive(Serialize)]     */
 
     
     // _____________________________________________________________________________________________
     // DERIVE
     // - #[derive(...)] is an attribute that tells the compiler to auto-generate a trait impl block for your type.
-    //   e.g. #[derive(Debug)] auto-generates impl std::fmt::Debug for Point {...} 
     // - When to write impl by hand - whenever the auto-generated logic isn't what you want.
 
-    //     Debug      -> enables printing with {:?} and {:#?}.
-    //     Clone      -> enables .clone()
-    //     Copy       -> makes '=' do bitwise copy of your type instead of moving. Only works if every field is Copy
-    //     PartialEq  -> ==
-    //     Default    -> Dot::default(), all fields zero/empty
-    //     Hash       -> usable as a HashMap key
+    //     PartialEq / Eq   -> ==
+    //     PartialOrd / Ord
+    //     Clone            -> enables .clone()
+    //     Copy             -> makes '=' do bitwise copy of your type instead of moving. Only works if every field is Copy
+    //     Default          -> Dot::default(), all fields zero/empty
+    //     Hash             -> usable as a HashMap key
 
-    #[derive(Debug, Clone, Hash, Default, Eq, PartialEq)]
-    struct Cattt { name: String, hungry: bool }
+    // --------------------------------------------------------------------------------------------------------------------------
+    // Trait             Derivable    What does it do                                  When to hand-write?
+    // --------------------------------------------------------------------------------------------------------------------------
+    // Debug            │ ✅        │ developer printout via {:?} / {:#?}             │ you want a custom developerview (rare)
+    // Display          │ ❌        │ user-facing printout via {}, gives .to_string() │ always, if you want one
 
-    let cat = Cattt { name: String::from("Witchy"), hungry: true };
-    let mut hash_map: HashMap<Cattt, i32> = HashMap::new();
+    // PartialEq / Eq   │ ✅        │ == and != (Eq: also promises a == a)            │ equality isn't field-by-field
+    // PartialOrd / Ord │ ✅        │ < > <= >= and sorting (Ord: total order)        │ ordering isn't declaration-order lexicographic
+    // Hash             │ ✅        │ turns a value into a hash, needed for map keys  │ you hand-wrote PartialEq
 
-    println!("{:?}", cat);          // can print
-    hash_map.insert(cat, 42);       // can insert into hash map
-    let cat = Cattt::default();  // can create a default cat
+    // Default          │ ✅        │ T::default() gives a starting value             │ the default isn't zero/empty
+    // From / TryFrom   │ ❌        │ converts another type into this one (or fails)  │ always
+    // Clone            │ ✅        │ explicit, possibly expensive copy via .clone()  │ cloning needs to do somethingspecial
+    // Copy             │ ✅        │ = copies the bits instead of moving             │ never — it's a marker, derive or don't
+
+    // Drop             │ ❌        │ code that runs when the value goes away         │ you own a non-Rust resource
+    // Deref            │ ❌        │ *x and auto-forwarding of method calls to inner │ you're writing a smart pointer
+    
+    // _____________________________________________________________________________________________
+    // DEBUG, DISPLAY
+    // Derive Debug on almost everything, implement Display only for types a user will see, such as error messages, CLI output or logs. 
+
+    // DEBUG
+    // Derivable. Makes it printable with {:?} or {:#?} (pretty). Intended audience is programmers.
+    #[derive(Debug)]
+    struct Cat { name: String, age: u32 }
+
+    let cat = Cat { name: "Kitty".to_string(), age: 5 };
+    println!("{:?}", cat);
+
+    // DISPLAY
+    // Can't derive. Makes it printable with {}. Also gives you to_string() for free. Intended audience is users.
+    impl Display for Cat {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "{} ::: {}", self.name, self.age)
+        }
+    }
+    
+    println!("{}", cat);
+    cat.to_string();
 
     // _____________________________________________________________________________________________
+    // PARTIALEQ, EQ
+    // Derive both unless the type contains floats, or a == a is not always true.
+
+    // PARTIALEQ
+    // Derivable. Gives a type .eq(), == and !=. Compares field by field.
+    #[derive(PartialEq)]            // floats inside: PartialEq only
+    struct Point { x: i32, y: i32 }
+
+    let p1 = Point {x: 10, y: 15 };
+    let p2 = Point {x: 10, y: 15 };
+    p1.eq(&p2);
+
+    println!("{:?}", p1 == p2);
+    println!("{:?}", p1 != p2);
     
+    // EQ
+    // Derivable. A marker trait (has no methods) - a promise that every value equals itself (a == a is always true).
+    // In floats NaN (not a number) is not equal to anything, including itself (F64::NAN != F64::NAN), which is why floats don't implement Eq.
+    // That also means any type that contains floats can't derive Eq.
+    #[derive(PartialEq, Eq)]        // the usual pair
+    struct UserId(u32);
+
+    // _____________________________________________________________________________________________
+    // HASH
+    // Derivable. A derived hash feeds every field into the hasher. A type needs both Hash and Eq to be used as a map key or set member.
+
+    // The contract: f a == b, then hash(a) == hash(b). A lookup uses hash key to find the bucket, then uses == inside that bucket. 
+    // If two equal values hashed differently they would go to different buckets and the lookup would miss. 
+    // ! The rule: Derive both PartialEq and Hash, OR handwrite both. But never derive one and hand write the other, because their logic must be the same.
+    // Deriving Hash next to a custom PartialEq is the classic silent bug.
+
+    // Floats don't implement Hash, because they have NaN, which is why f64 can't be a map key.
+    
+    #[derive(PartialEq, Eq, Hash)]
+    struct User(String, i32);
+
+    let u = User("John".to_string(), 25);
+    let mut m = HashSet::new();
+    
+    m.insert(u);    // can be inserted into hashset or hashmap
+    
+    // _____________________________________________________________________________________________
+    // PARTIALORD, ORD
+    // Derive both unless the type contains floats, or "any two values can always be compared" is not true.
+
+    
+    // PARTIALORD
+    // Derivable, requires PartialEq. Gives a type partial_cmp(), <, >, <=, >=. 
+    // Derived ordering - fields are compared one by one in declaration order and we look at the next field only on a tie (==). For enums its variant declaration order, then by field.
+    
+    // By itself partial_cmp() only returns Option<Ordering>, implying that not all instances of the type can be compared. 
+    // E.g. float's NaN can't be compared. This also means methods such as Vec::sort() on the collection of items are unavailable until ORD is implemented also.
+    #[derive(PartialEq, PartialOrd, Eq, Ord)]
+    struct SemVer { major: i32, minor: i32, patch: i32 }
+
+    let s1 = SemVer { major: 1, minor: 1, patch: 1 };
+    let s2 = SemVer { major: 1, minor: 2, patch: 1 };
+
+    println!("{:?}", s1 > s2);
+    println!("{:?}", s1 <= s2);
+    s1.partial_cmp(&s2);
+
+
+    // ORD
+    // Derivable. Requires Eq, PartialOrd. Marker trait - a promise that all value of the type can be compared. 
+    // Gives a type cmp() (returns Ordering, not Option<Ordering>) which enables methods such as Vec::sort(), max(), min().
+    
+    #[derive(PartialEq, PartialOrd, Eq, Ord)]
+    struct Version { major: i32, minor: i32, patch: i32 }
+
+    let v1 = Version { major: 1, minor: 1, patch: 1 };
+    let v2 = Version { major: 1, minor: 2, patch: 1 };
+    
+    let mut vec: Vec<Version> = vec![v1, v2];
+    vec.sort();
+
+    /* _____________________________________________________________________________________________
+    CLONE, COPY
+    If the type implements nothing (no Clone, nor Copy) - it gets moved on assignment (same as Clone types) and doesn't get .clone() - sometimes it makes sense to not implement Clone if a type represents a unique resource such as a file.
+    A type can implement either: Clone trait, or Clone + Copy traits. This affects what happens when you: 1. Assign the type with '='. 2. Clone the type with .clone().
+                Clone (can have heap data*)                                                 Clone + Copy (stack data only*)
+    =           variable moved; stack copied, heap untouched (cheap);                       variable alive; stack copied (cheap)
+    .clone()    variable alive; stack copied, heap copied (expensive if has heap data)      variable alive; stack copied (cheap), same as '='                       
+
+    When to use each:
+    - Derive Clone on most data types.
+    - Add Copy for simple, small plain types consisting of all Copy values. Be careful - if you add Copy and then remove it, all usages that rely on assignment doing copy it break.    */
+    
+
+    // CLONE
+    // Clone - means you can clone it with .clone() - stack / Copy fields are copied on the stack (cheap), and heap / dynamic fields (like String) are copied on the heap (expensive heap allocation).
+    // So, unless the type is also Copy or you know that all fields are Copy, assume that .clone() is an expensive operation.
+    // Assignment (=)   variable moved; stack copied, heap untouched (cheap); 
+    // .clone()         variable alive; stack copied, heap copied (expensive if has heap data) 
+    #[derive(Clone)]
+    struct Expensive { 
+        x: i32,         // Copy field - will be copied during .clone()
+        name: String,   // Clone field - meaning it can potentially hold heap data - potentially expensive allocation during .clone()
+    }
+    let e = Expensive { x: 10, name: "hi".to_string() };
+    let e2 = e;                 // moved
+    let e_clone = e2.clone();   // expensive .clone()
+
+    
+    // COPY
+    // Copy - marker trait, a promise that this value in its entirety can live on the stack (because each field is Copy / can live on the stack), 
+    // meaning that .clone() is cheap (stack copy only), and also makes assignment (=) copy, not move.
+    #[derive(Clone, Copy)]
+    struct Cheap { 
+        x: i32,     // Both fields are Copy - therefore this type can be Copy (a promise that all fields are), therefore .clone() is cheap, and assignment (=) copies, not moves
+        y: i32 
+    }
+    let c = Cheap { x: 10, y: 10 };
+    let c2 = c;                 // copied (c still alive)
+    let c_clone = c2.clone();   // cloned (cheap - copied on stack)
+
+    // _____________________________________________________________________________________________
+    // DEFAULT
+    // Default gives a type one function Type::Default(), with no parameters, that creates a value with every field set to it's default value: 0, false, "".
+    // For an enum, you mark the default variant with #[default] attribute - that variant must be unit variant (no fields).
+    #[derive(Debug, Default)]
+    struct Config { 
+        host: String, 
+        port: u16, 
+        retries: u8 
+    }
+    let config = Config::default();
+
+    
+    #[derive(Default)]
+    enum Severity {
+        #[default] 
+        INFO,
+        WARN,
+        CRITICAL
+    }
+    let sev = Severity::default();      // INFO
+
+
+    // Hand write default if you want other default values.
+    struct Something {
+        x: i32,
+        y: i32
+    }
+    impl Default for Something {
+        fn default() -> Self {
+            Self { x: 30, y: 30 }
+        }
+    }
+    let s = Something::default();
+
+    // _____________________________________________________________________________________________
+    // FROM / INTO
+    // From - implemented by hand to add associated function Type::from(another_type) that converts another type to this one.
+    // Implementing From automatically adds into() for another_type in reverse direction. You never implement Into yourself. So the rule is: implement From, use either.
+    struct Feet(i32);
+    struct Meters(i32);
+
+    impl From<Feet> for Meters {        // We only implement From, but we get both Type::from(another_type) and another_type.into()
+        fn from(value: Feet) -> Self {
+            Meters(value.0 * 2)
+        }
+    }
+    
+    let meters1 = Meters::from(Feet(10));
+    let meters2: Meters = Feet(10).into();
+
+    
+    // Practical example 1 - a function that accepts impl Into param, as a way of accepting anything that can be converted
+    fn greet(name: impl Into<String>) {
+        let msg = name.into();
+        println!("{}", msg);
+    }
+
+    
+    // Practical example 2 - custom application error
+    // ? uses From to convert one error into another. So one From impl lets ? convert that error type into yours everywhere.
+    // impl From<X> for MyError is therefore the highest-leverage impl in a Rust codebase: one 3-line block removes boilerplate from every call site that can produce X.
+    enum AppError {
+        ConfigError(std::io::Error),
+        ProcessingError
+    }
+    impl From<std::io::Error> for AppError {
+        fn from(value: std::io::Error) -> Self {
+            AppError::ConfigError(value)
+        }
+    }
+
+    fn read_file() -> Result<File, AppError> {
+        let file = File::open("data.txt")?;     // ? uses From to convert one error into another
+        Ok(file)
+    }
+
+    // _____________________________________________________________________________________________
+    // TRY_FROM / TRY_INTO
+    // Same idea as From / Into, but for conversions that can fail. So the return type of Type::from(another_type) is Result<Self, error_type> where error_type is an associated type.
+    struct Pounds(i32);
+    struct Kg(i32);
+
+    impl TryFrom<Pounds> for Kg {
+        type Error = String;
+        fn try_from(value: Pounds) -> Result<Self, Self::Error> {
+            if value.0 > 0 { 
+                Ok(Kg(value.0))
+            } else { 
+                Err(format!("{} is less than zero", value.0)) 
+            }
+        }
+    }
+
+    let kg = Kg::try_from(Pounds(10)).unwrap();
+    let kg: Kg = Pounds(10).try_into().unwrap();
+
+    // Practical example 1 - the standard library's number conversions follow the same From / TryFrom split. Widening, which always fits is From. Narrowing, which might fail, is TryFrom.
+    let a: u32 = u32::from(5u8);                // Widening (will always succeed) -> from
+    let b: u8 = u8::try_from(3u32).unwrap();  // Narrowing (can fail) -> try_from
+
+    // _____________________________________________________________________________________________
+    // DROP
+    // Drop is code that runs automatically when a value goes away - either because it goes out of scope or because its owner is dropped with drop()
+    // - Order: 
+    //    - variables are dropped in reverse order of declaration: last in, first out (stack).
+    //    - A struct's own drop body runs first, then its fields are dropped in declaration order.
+    // - A type can't be both Drop and Copy. If a value can be silently duplicated, there's no single owner whose cleanup should run exactly once.
+    // You rarely implement drop yourself - only for something that Rust doesn't know how to clean up: e.g. a handle from C, or a hand written buffer with unsafe code.
+
+    struct Hi { x: i32 }
+    impl Drop for Hi {
+        fn drop(&mut self) { println!("Hi {} was dropped!", self.x); }
+    }
+    
+    let h = Hi { x: 10 };
+    drop(h);                    // prints "Hi 10 was dropped!"
+
+    
+    // A common case for implementing Drop is when you write custom unsafe type e.g. a memory buffer.
+    // If you allocate raw memory yourself, Rust doesn't know that memory exists, so you need to free it yourself with Drop. 
+    // This is how String, Vec are built internally - they allocate raw memory and free it in their Drop.
+    struct Buffer { 
+        ptr: *mut u8, 
+        layout: Layout 
+    }
+  
+    impl Buffer {
+        fn new(size: usize) -> Self {
+            let layout = Layout::array::<u8>(size).unwrap();
+            let ptr = unsafe { alloc(layout) };   // raw allocation: Rust won't track it
+            Buffer { ptr, layout }
+        }
+    }
+  
+    impl Drop for Buffer {
+        fn drop(&mut self) {
+            unsafe { dealloc(self.ptr, self.layout) };   // without this, the memory leaks
+        }
+    }
+    
+    // _____________________________________________________________________________________________
+    // DEREF
+    
+
+    
+    // _____________________________________________________________________________________________
+
+
+
 }
 
 
