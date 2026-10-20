@@ -1,20 +1,6 @@
 use std::{collections::{HashMap, HashSet}, hash::Hash, ops::AddAssign};
 
 
-pub fn h_index(mut citations: Vec<i32>) -> i32 {
-    citations.sort();
-    citations.reverse();
-
-    let mut h = 0;
-    for i in 0..citations.len() {
-        if citations[i] < (i as i32 + 1) {
-            break;
-        }
-        h = i + 1;
-    }
-    h as i32
-}
-
 fn main() {
     let mut s = "hi".to_string();
     let mut idx_last_valid = s.chars().count() - 1;
