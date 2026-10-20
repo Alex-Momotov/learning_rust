@@ -91,3 +91,22 @@ OOP principles:
 [] Data modelling
 
 */
+
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+
+implement the simple benchmark of reading your json data files in rust and simply counting fields. Good exercise because:
+
+- taking arguemnts / clap
+- file io
+- json
+- timing things
+
+
+
+Then -> ask ai to rewrite in Go and compare
+
+
+
+
