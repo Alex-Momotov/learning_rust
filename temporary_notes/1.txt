@@ -1,3 +1,16 @@
+Terminal sessions
+
+main - "new-main"
+helper - claude --resume 467366b2-46a5-489c-9e08-6ac17f1e84e4
+clap - claude --resume cc10cd0b-dfdf-445c-acf9-66eca30a8ebe
+heuristics - claude --resume b6222b07-bd3b-447c-baef-809d284ecfcf
+algorithms - claude --resume 4877320d-96eb-40d9-95b0-d67439f83fc8
+tmp
+
+
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
   1. POINTERS — keep it here. dyn is unintelligible without "all pointers are the same size." Link out to
      q_memory_model_map.txt rather than duplicating.
   2. Framing — your 4-places-polymorphism-occurs list is good, keep as-is. Add the organising question: at this one
@@ -21,8 +34,6 @@
   5. THE WALL (moved + renamed) — can't mix implementers in one collection; can't return a different implementer per
      branch. Why: different types, different sizes; one monomorphised copy serves one type. This section exists to
      motivate §6.
-
---------------------------------------     
 
 The 3 unsized primitives
 str, [T], dyn Trait are the three unsized (!Sized) primitive types. All other unsized types derive from those. A struct whos last field is unsized itself becomes unsized.
