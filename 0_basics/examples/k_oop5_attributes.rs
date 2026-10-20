@@ -1,6 +1,6 @@
 #![allow(unused)]
 
-use std::{collections::{HashMap, HashSet}, default, fmt::Display, fs::File, hash::Hash, path::Path};
+use std::{collections::{HashMap, HashSet}, default, fmt::Display, fs::File, hash::Hash, ops::{Deref, DerefMut}, path::Path};
 use std::alloc::{alloc, dealloc, Layout};
 
 fn main() {
@@ -407,11 +407,56 @@ fn main() {
     
     // _____________________________________________________________________________________________
     // DEREF
+
+    // Deref lets a type behave like a reference to something inside it - implying that the type is either a reference to or a wrapper around something more meaningful. 
+    // Dereferencing - means "follow the arrow". What you're holding points at something, and * (or dereferencing) takes you to the thing. Implementing Deref is your type saying "I am an arrow to a Target"
+
+    // Implementing Deref adds .deref() method that returns &Target; and implementing DerefMut adds .deref_mut() method that returns &mut Target.
+    // Manually (or otherwise) defererencing then picks .deref() or .deref_mut() depending on whether the operation reads or only mutates.
+
+    // 1. *x works on the type
+    // 2. Method calls are forwarded - if a method isn't found on your type, the compiler retries the lookup on the type it derefs to. 
+    //    This is also how auto-dereferencing works on pointers (&, &mut, Box, etc). Those pointers implement Deref.
+    // 3. Deref coercion - wherever &Target or &mut Target is expected you can pass &Type or &mut Type and it will convert automatically (compiler inserts deref for us).
+
+    struct MyType {
+        x: i32,
+        s: String
+    }
+    impl Deref for MyType {     // Deref enables: 1. manual dereferencing * for read operations; 2. Methods via auto-dereferencing that require read only access; 3. Deref coercion &Type -> &Target
+        type Target = String;
+
+        fn deref(&self) -> &Self::Target {
+            &self.s
+        }
+    }
+    impl DerefMut for MyType {  // DerefMut enables: 1. manual dereferencing * for write operations; 2. Methods via auto-dereferencing that require write access; 3. Deref coercion &mut Type -> &mut Target
+        fn deref_mut(&mut self) -> &mut Self::Target {
+            &mut self.s
+        }
+    }
+
+    let mut my_type = MyType { x: 10, s: "hi".to_string() };
+    let read_ref = my_type.deref();         // Same as doing *my_type just for reading - e.g. let foo = *my_type
+    let mut_ref = my_type.deref_mut();  // Same as doing *my_type for mutable access - e.g. *my_type += 1
+    
+    // 1. Dereferencing manually gives you the inner target. What can you do with it?
+    let m2 = (*my_type).clone();  // Moving / copying out (if Target is Copy - you can copy it out; if Target is Move - you can't move it out from behind a reference, but you can clone it)
+    *my_type = "new".to_string();         // Modifying / re-assigning to something else
+    *my_type += "hi";                     
+
+    // 2. Calling inner methods (auto-dereferencing)
+    my_type.len();            // MyType has no len(), so len() is found and called after auto-dereferencing to Target
+    my_type.push_str("hi");   // Mutable operation - requires DerefMut implemented
+
+    // 3. Deref coercion
+    fn something(s: &String) {}
+    fn something2(s: &mut String) {}
+    something(&my_type);          // compiler inserts &*m automatically
+    something2(&mut my_type);     // compiler inserts &mut *m automatically
     
 
-    
     // _____________________________________________________________________________________________
-
 
 
 }
