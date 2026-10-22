@@ -73,20 +73,6 @@ fn main() {
 
 
     // _____________________________________________________________________________________________
-    // You cannot implement the same trait for a given type twice 
-    // (unless the trait is generic and implementations use diff generic types)
-    trait Tr {};
-    trait GenTr<T> {};
-    
-    struct A;
-    
-    impl Tr for A {}
-    // impl Tr for A {}     ❌ Not allowed to implement it second time
-    
-    impl GenTr<i32> for A {}
-    impl GenTr<bool> for A {}   // ✅ Multiple implemnetations allowed, because they use different generic param types (monomorphisation, so in fact they are different traits)
-    
-    // _____________________________________________________________________________________________
     // Fully qualified syntax
     // You only need the fully qualified syntax when a type implements multiple traits that have colliding methods, so you need to disambiguate
     struct Human;
@@ -127,37 +113,17 @@ fn main() {
     
     // _____________________________________________________________________________________________
     // THE ORPHAN RULE
-    // You may implement a trait for a type only if the trait local to your crate, or the type is local to your crate (or both), but not if both are foreign.
-    // Why it exists: If two unrelated crates/dependencies were both allowed to implement a (Trait, Type) pair they dont own, and your code depends on both - this create a conflict - which implementation should compiler pick?
-    // What it achieves: At most one crate in the dependency graph is ever allowed to implement the (Trait, Type) pair. No conflicts.
-
-    // Implementing YOUR trait on a FOREIGN type
-    // ...
-
-    // YOUR type implementing a FOREIGN trait
-    // ...
-
     
-    // The workaround for when you need "foreign trait on foreign type" - Wrap the foreign type in a local tuple struct, then the type is yours. 
-    struct Wrapper(Vec<String>);          // now local
-    impl std::fmt::Display for Wrapper {  // ✅ foreign trait, but on a local type — allowed
-        fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-            write!(f, "[{}]", self.0.join(", "))
-        }
-    }
-    // Cost - you loose direct access to the underlying type's methods, you you need Deref or explicit .0 acces
+    // You cannot implement a trait for a type more than once - this would introduce a conflict (which implementation should run?)
+    struct A;
+    trait B {};
+    impl B for A {}
+    // impl B for A {}     ❌ Not allowed to implement it second time
+    
+    // For any (trait, type) pair there can only exist one impl in any crate in the entire world. By either: a crate that holds the trait; or a crate that holds the type.
+    // And since circular crate dependencies are not allowed, it is guaranteed that it is strictly one or the other (never both, becuase they would both have to import each other).
+    // More formally, the orphan rule disallows a crate to implement a (trait, type) pair if it holds neither trait nor the type, because if two crates did that and you imported both there'd be a conflict. 
 
-    // Note: if your type appears as a generic parameter in the trait implementation signature then it's okay to implement a foreign trait on a foreign type:
-    //       impl foreign::Trait<MyType> for foreign::OtherType can work.
-
-
-    // You can implement YOUR trait for a FOREIGN type, or have YOUR type implement a FOREIGN trait, but never a FOREIGN trait on FOREIGN type - see the Orphan Rule.
-    // ⭐ This is huge: That means you can add behaviour to types you don't own - something other languages don't allow. That's why Rust never needed a "utils" class: you add behaviour to existing types instead.
-    //    E.g. in Java you can't add an interface implementation to a class you don't own without subclassing it (Java simply has no mechanism for it because 'implements' is part of the class definition.)
-    // Benefits: 
-    //   1. the whole ecosystem can layer new abstractions over existing code without forking it
-    //   2. without the original author anticipating your need
-    //   3. and without losing method-call syntax or replacing every occurance with the new interface - it just works. 
     
     // 1. Implement your trait for a foreign type
     trait Summarisable { 
@@ -170,6 +136,7 @@ fn main() {
     }
     let s = String::from("hi");
     s.summary();
+
     
     // 2. Implement foreign trait for your type
     struct Counter(i32);
@@ -181,17 +148,31 @@ fn main() {
     let a = Counter(1);
     let b = Counter(1);
     a == b;
-
-    // 3. Implement your trait for your type
-    struct Dog;
-    trait Greets { fn greet(&self); }
-    impl Greets for Dog { fn greet(&self) { println!("woof"); } }
-    let dog = Dog;
-    dog.greet();
     
-    // Trait must be in scope
-    // ⭐ You must ensure the trait is in scope and do use::.. if needed. Otherwise you don't have access to the trait's behaviours.
+    // Implications
+    // 1. You can add behaviour to types you don't own - something other languages don't allow. That's why Rust never needed a "utils" class: you add behaviour to existing types instead.
+    //    E.g. in Java you can't add an interface implementation to a class you don't own without subclassing it (Java simply has no mechanism for it because 'implements' is part of the class definition.)
+    // 2. The whole community of rust developers can add extended behaviours to existing libraries without forking it, without the original author anticipating the need, and without having to update the usage occurance of the original library - it just works
+    //    If you're using a popular library that hasn't covered a use case you need yet, but someone "added behaviour" to it by adding a trait to it, you can just import that other crate and import their trait and you'll suddenly gain the missing behaviour.
+    //    E.g. you're using a popular machine learning library that has powerful tensors, but the lib didn't add K-means algorithm on it yet (but someone else did). You import that someone else's crate and trait and suddenly your tensors can do K-means.
+    //    ⭐ In order to "import behaviour" of a trait you must ensure the trait is in scope by doing the use statement (use::TraitFoo).
 
+
+    // TRAIT IMPORT CASES
+    // (type, trait) pair
+    // You can't import an impl block separately. When you import a type, you automatically import everything impl-ed on it in that crate.
+    //                                            When you import a trait, you automatically import its every impl on the types you already use - either by the trait's author or the type's author.
+
+    // case 1 - "Type, together with a catalogue of optional behaviours".   
+    //          "Crate: Here's my type and here's an optional catallogue of behaviours you can opt into".
+    //          (type, trait) pair is in the same crate. When you import type, it doesn't automatically gain new behaviours - you need to also import the trait from that same lib. 
+    // case 2 - "Making it fit into the ecosystem".                         
+    //          "A: Here's my thing, and I've made it fit into the ecosystem by implementing those traits. You just need to import them separately as well from this crate."
+    //          Crate A holds (type) -> crate B holds (trait). Crate A has the complete (type, trait) pair and implements the trait.
+    // case 3 - "Extending behaviour of something else".                    
+    //          "B: I've extended this other popular crate A with some new behaviours that will be useful for everyone. If you're already using A, just import my traits and the new behaviours will appear on it."
+    //          crate A holds (type) <- crate B holds (trait). Crate B has the complete (type, trait) pair and implements the trait.
+    
     
     // _____________________________________________________________________________________________
     // AUTO TRAITS

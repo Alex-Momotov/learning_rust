@@ -160,6 +160,14 @@ fn main() {
     // GENERIC TRAIT
     // ...
 
+    // Recall that you cannot implement a trait for a type more than once? What about traits with generic params? Well they are in fact different traits (monomorphisation) so you can implement a trait for a type for a different generic param each time. 
+    trait GenTr<T> {};
+    struct A;
+
+    impl GenTr<i32> for A {}
+    impl GenTr<bool> for A {}   // ✅ Multiple implemnetations allowed, because they use different generic param types (monomorphisation, so in fact they are different traits)
+    
+
     // Choosing between associated type and generic param for a trait
     //   - Is the type uniquely pinned down by the implementing type?             -> associated type.
     //   - Can one type meaninfgully implement this trait in more than one way?   -> generic parameter.
