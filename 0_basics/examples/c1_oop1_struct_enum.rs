@@ -282,7 +282,7 @@ fn main() {
     // Inside impl Trait, 'type' implements the associated type
     impl Something for String { type Item = i32; }
 
-    
+
     // _____________________________________________________________________________________________
 
 }

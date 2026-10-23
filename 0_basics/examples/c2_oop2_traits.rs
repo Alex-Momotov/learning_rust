@@ -291,6 +291,7 @@ fn main() {
         let i = it.next().unwrap();      // ❌ it.next() can be called but we don't know anything about the associated type, so can't call integer methods on i
     }
     
+
     // _____________________________________________________________________________________________
     
 }
