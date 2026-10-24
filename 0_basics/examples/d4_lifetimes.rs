@@ -19,7 +19,7 @@ fn main() {
     // Also, you can think of lifetime params as a tree - declare them at functions and type definitions -> then the actual usage and "tying together" flows down to function returns and type fields.
     
     // Lifetime elision - whenever there is only one reference as input then all output references get its lifetime (automatically inferred by compiler), so no need to specify lifetime params
-    // Also struct/enum methods which take &self or &mut self - if return is a reference it will automatically get the self's lifetime - no need to specify (unless this is a wrong assumption and then you specify explicitly)
+    // If one of the inputs is &self/&mut self, self's lifetime is given to all outputs by default (unless otherwise specified).
     fn lifetime_elision(s: &str) -> &str { s }                          // 1 ref input, 1 ref output
     fn lifetime_elision2(s: &str) -> (&str, &str) { (s, &s[0..1]) }     // 1 ref input, 2 ref output
     fn words(s: &str) -> Vec<&str> { s.split_whitespace().collect() }   // 1 ref input, Vec of refs output - all &str in Vec borrow from s
@@ -125,38 +125,5 @@ fn main() {
     }
     
 
-    // _____________________________________________________________________________________________
-
-
-    // Note: Rust checks each function call using only its signature, never the body. The signature is a contract:
-    // the caller's side is checked against the signature ("is r used after s1 is dropped?")
-    // the body is checked against the signature separately ("does it actually return something borrowed from s1?")
-    // So the lifetime annotation is there because the signature has to say which input the output borrows from.
-
-    
-    // Lifetime syntax - ...
-
-
-    // _____________________________________________________________________________________________
-    /* 
-    [] Make sue you understand what this is about:
-    
-    Returning references — you can only hand back what you were lent
-    
-      You can't return a reference to a local; the frame dies. So a returned reference must borrow from an input, and
-      lifetime elision decides which input, by three rules:
-    
-      1. Each elided input reference gets its own lifetime.
-      2. If there's exactly one input lifetime, it's given to all outputs.
-      3. If one of the inputs is &self/&mut self, self's lifetime is given to all outputs.
-    
-      fn first_word(s: &str) -> &str { .. }        // rule 2 — output borrows from s
-      fn longest(a: &str, b: &str) -> &str { .. }  // ERROR: two inputs, ambiguous
-      fn longest<'a>(a: &'a str, b: &'a str) -> &'a str { .. }  // must be explicit
-    
-      ⭐ The practical rule while learning: return owned data (String, Vec<T>) and don't fight it. Returning references is
-      a performance/API refinement, and it's the single most common place beginners hit lifetime annotations.
-    
-    */
     // _____________________________________________________________________________________________
 }
