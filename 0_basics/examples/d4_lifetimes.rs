@@ -67,37 +67,32 @@ fn main() {
     
     // _____________________________________________________________________________________________
     // LIFETIME PARAM - STRUCTS
-    // Since struct fields cannot be null, struct's reference fields must stay valid references throughout the lifetime of a struct.
+    // A struct can't outlive the data it borrows. Since struct fields cannot be null, struct's reference fields must stay valid references throughout the lifetime of a struct.
     // Therefore, we can think of structs containing references having "lifetimes" of their own, in a sense that a struct with references can't outlife the data that those references point to.
 
-    struct Message<'a> {    // This struct's instance can't outlive data that it's references point to.
+    struct Record<'a> {    // This struct's instance can't outlive data that it's references point to.
         data: &'a str
     }
     
     // If a struct has a lifetime param, its impl block must have a lifetime param too. Either:
-    impl Message<'_> {                          // Anonymous lifetime - if you never refer to 'a inside the impl, write `impl Message<'_> { ... }` (anonymous lifetime).
-        fn get(&self) -> &str { self.data }
-    }
-    
-    impl<'a> Message<'a> {                      // Or full syntax (like generic)
+    impl Record<'_> {}     // Anonymous lifetime - if you never refer to 'a inside the impl, write `impl Record<'_> { ... }` (anonymous lifetime).
+    impl<'a> Record<'a> {  // Full syntax (like generic)
+        fn get(&self) -> &str { self.data }             // tied to &self (elision)              Returned reference can't outlive struct itself
+        fn get_raw(&self) -> &'a str { self.data }      // tied to underlying String buffer     Returned reference can't outlive underlying String buffer
         fn compare(&'a self, other: &'a str) -> &'a str { 
-            if self.data.len() > other.len() { 
-                return self.data 
-            }
             other
         }
     }
     
-
     let s = "hi".to_string();
-    let m = Message { data: &s };
-    // drop(s);             // ❌ Error - This would mean the struct outlives the data that it's references point to
-    m;
+    let rec = Record { data: &s };
+    // drop(s);       // ❌ Error - This would mean the struct outlives the data that it borrows
+    rec;
 
 
     // * Why isn't struct's "lifetime" automatically tied to the lifetime of all references inside it? Why do we have to specify it?
     //   Because there are edge cases where you can use a struct as a "passthrough" of a reference - the struct dies, but this function still returns a reference of what it was pointing to
-    fn outlive<'a>(m: Message<'a>, s: &str) -> &'a str {
+    fn outlive<'a>(m: Record<'a>, s: &str) -> &'a str {
         let r = m.data;
         drop(m);
         r
@@ -105,13 +100,30 @@ fn main() {
 
     // _____________________________________________________________________________________________
     // STATIC LIFETIMES
-    // A static lifetime means a reference will life as long as the program. All string literals have a static lifetime because they are baked into the binary's static region.
+    // &'static str and T: 'static share one idea, "valid until the end of the program"
+    //   - &'static str: this reference stays valid forever.
+    //   - T: 'static: a value of type T could be kept forever (if needed) without anything inside it going stale.
+    
+    // 1. 'static as reference lifetime parameter -  means a reference will life as long as the program. All string literals have a static lifetime because they are baked into the binary's static region.
     let s: &'static str = "hi";
     
+    // 2. 'static as a generic bound - T must not contain any references that could expire - it either owns its data or only borrows 'static data (e.g. string literals). 
+    // Put another way, it's always safe to keep a T for as long as you like. It does NOT mean the T value lives forever.
+    fn foo<T: 'static>(t: T) {}
 
+    struct Owning(String);          // Fine - T owns everything it contains
+    foo(Owning("hi".to_string()));
+    
+    struct Borrowing<'a>(&'a str);
+    let s1 = "hi".to_string();
+    // foo(Borrowing(&s1));         // ❌ Error - T borrows something that could expire
+
+    foo(Borrowing("hi"));           // Fine - T borrows data that lives forever
+
+    
     // _____________________________________________________________________________________________
     // GENERIC AND LIFETIME PARAMS TOGETHER
-    // They are simply specified in the same <> separated by comma.
+    // They are simply specified in the same brackets <>, lifetimes first, then generics, separated by comma.
     
     fn longest_with_announcement<'a, T: Display>(s1: &'a str, s2: &'a str, announcement: T) -> &'a str {
         let longest = if s1.len() > s2.len() {
@@ -126,4 +138,5 @@ fn main() {
     
 
     // _____________________________________________________________________________________________
+    
 }
