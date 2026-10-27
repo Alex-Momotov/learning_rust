@@ -1,5 +1,17 @@
 use std::fmt::Display;
 
+/* 
+Tips
+- Function signatures: you'll write 'a mostly for the "multiple reference inputs, reference output" case.
+- Structs: store owned data (String, Vec) by default. Use struct Foo<'a> for short-lived views over a buffer, like parsers,
+  iterators and "view" types. A struct with a lifetime spreads <'a> to everything that holds it, so keep those types
+  short-lived and local.
+- Long-lived state (your State/Runtime objects) should own its data. Lifetimes on long-lived structs are the main way people
+  end up fighting the borrow checker.
+- When stuck, the error usually names two regions that don't fit together. Ask yourself: which input does this output really
+  borrow from, and does that input live long enough at the call site?
+*/
+
 
 fn main() {
     // _____________________________________________________________________________________________
